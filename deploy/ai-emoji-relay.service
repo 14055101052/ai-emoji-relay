@@ -1,0 +1,29 @@
+[Unit]
+Description=AI Emoji Keyboard secure Lovable relay
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ai-emoji-relay
+Group=ai-emoji-relay
+WorkingDirectory=/opt/ai-emoji-relay
+EnvironmentFile=/etc/ai-emoji-relay/secrets.env
+Environment=NODE_ENV=production
+Environment=HOST=127.0.0.1
+Environment=PORT=8787
+Environment=TLS_TERMINATION=reverse-proxy
+Environment=RELAY_DB_PATH=/var/lib/ai-emoji-relay/relay.sqlite
+ExecStart=/usr/bin/node --use-env-proxy /opt/ai-emoji-relay/src/server.mjs
+Restart=on-failure
+RestartSec=5
+StateDirectory=ai-emoji-relay
+StateDirectoryMode=0700
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target
