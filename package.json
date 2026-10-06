@@ -1,0 +1,12 @@
+{
+  "name": "ai-emoji-relay",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {"node": ">=24.0.0"},
+  "scripts": {
+    "start": "node --use-env-proxy src/server.mjs",
+    "test": "node --test test/*.test.mjs",
+    "verify:live": "node --use-env-proxy scripts/verify-live.mjs"
+  }
+}
