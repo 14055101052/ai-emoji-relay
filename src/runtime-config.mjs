@@ -1,7 +1,9 @@
 import { isAbsolute } from 'node:path';
+import { validateUpstreamUrl } from './upstream-url.mjs';
 
 /** Non-secret deployment validation. Explicit Render opt-in never affects other TLS modes. */
 export function runtimeConfig(env = process.env) {
+  const generateUrl = validateUpstreamUrl(env.LOVABLE_GENERATE_URL);
   const fail = message => { throw new Error(message); };
   const bounded = (name, fallback, max) => {
     const value = env[name] ?? String(fallback);
@@ -31,8 +33,8 @@ export function runtimeConfig(env = process.env) {
       fail('Persistent Render storage requires an absolute database path on an attached persistent disk.');
     // The operator must mount persistent storage; an absolute path alone does not prove durability.
   }
-  return { mode, host, dbPath, ephemeral, port: bounded('PORT', 8787, 65535),
+  return { mode, host, dbPath, ephemeral, generateUrl, port: bounded('PORT', 8787, 65535),
     generationDailyGlobal: bounded('GENERATION_DAILY_GLOBAL', 50, 10000),
     generationDailyIP: bounded('GENERATION_DAILY_IP', 5, 100),
     maxConcurrent: bounded('MAX_CONCURRENT_GENERATIONS', 2, 10) };
-    }
+}

@@ -1,8 +1,10 @@
 # AI Emoji secure relay
 
-Minimal Node.js 24 service with direct HTTPS, local TLS proxy, or explicit Render-managed HTTPS termination. No third-party runtime dependencies, no alternative image engine. The server calls only:
+Minimal Node.js 24 service with direct HTTPS, local TLS proxy, or explicit Render-managed HTTPS termination. No third-party runtime dependencies, no alternative image engine. The upstream comes exclusively from required **server-side `LOVABLE_GENERATE_URL`**. Development value:
 
-`https://project--a55e5977-6867-4325-9a5e-5e9efbb3a82c.lovable.app/api/public/emoji/generate`
+`https://project--a55e5977-6867-4325-9a5e-5e9efbb3a82c-dev.lovable.app/api/public/emoji/generate`
+
+There is no fallback upstream. Missing/invalid configuration fails startup before creating SQLite or opening a listener. HTTPS, the existing project development/production host and generation path, and public-only startup DNS results are required. IP literals, localhost/private destinations, credentials, queries/fragments, other hosts and nonstandard ports are rejected. Redirects remain disabled. The URL is never accepted from Android requests or returned by the public API; startup errors do not print its value. This is trusted-provider host allowlisting plus startup DNS validation, not arbitrary-host DNS pinning.
 
 The permanent Lovable key is read from the server environment; it is never returned to Android or written to logs. Anonymous session tokens are 256-bit random values, expire after one hour, and are verified using SHA-256 hashes in server-only SQLite. Android automatically obtains and refreshes tokens and encrypts them with Android Keystore.
 
@@ -39,6 +41,7 @@ The relay forwards only these response fields. The Android app immediately downl
 | Variable | Requirement / default |
 | --- | --- |
 | `EMOJI_API_KEY` | **Required server-only secret** from the existing Lovable backend. Provision through the hosting provider's secret manager or a root-protected environment file. Never add its value to source, chat, APK, Android Settings or Gradle properties. |
+| `LOVABLE_GENERATE_URL` | **Required server-side URL; no fallback.** Use the development URL above or this project's production HTTPS generation URL. Startup requires exclusively public DNS answers. |
 | `RELAY_DB_PATH` | Persistent writable SQLite file; default `./data/relay.sqlite`. Production service uses `/var/lib/ai-emoji-relay/relay.sqlite`. |
 | `TLS_TERMINATION` | `reverse-proxy` for supplied Caddy; `render` for Render Web Service; `direct` (or unset with both TLS certificate paths) for direct HTTPS. |
 | `RELAY_STORAGE_MODE` | Required in Render mode: `persistent`, or `ephemeral-development` with `NODE_ENV=development`. Never use ephemeral mode for production. |
@@ -67,7 +70,7 @@ sudo install -d -o ai-emoji-relay -g ai-emoji-relay -m 0700 /var/lib/ai-emoji-re
 sudo install -m 0644 /opt/ai-emoji-relay/deploy/ai-emoji-relay.service /etc/systemd/system/ai-emoji-relay.service
 ```
 
-3. Provision `/etc/ai-emoji-relay/secrets.env` from your secret manager, containing the `EMOJI_API_KEY` environment binding. Set its owner to root and mode to `0600`. The systemd manager reads this protected file before switching to the service user. Do not enter a credential in a command that would place it in shell history. On a managed hosting provider, bind the secret as a server-only environment variable instead.
+3. Provision `/etc/ai-emoji-relay/secrets.env` from your secret manager, containing the `EMOJI_API_KEY` binding and required `LOVABLE_GENERATE_URL` server configuration. Set its owner to root and mode to `0600`. The systemd manager reads this protected file before switching to the service user. Do not enter a credential in a command that would place it in shell history. On a managed hosting provider, bind the secret as a server-only environment variable instead.
 4. Replace `relay.example.com` in `deploy/Caddyfile` with the actual hostname. Install it as `/etc/caddy/Caddyfile`, or merge its site block with an existing Caddy configuration. Caddy terminates TLS and overwrites forwarded client-IP/protocol headers. The relay trusts these headers **only** from its loopback proxy in explicitly configured reverse-proxy mode.
 
 ```sh
@@ -90,16 +93,17 @@ Local automated HTTPS components (requires Node 24 and OpenSSL):
 npm test
 ```
 
-The tests generate temporary TLS certificates and a synthetic server credential, inject controlled upstream responses, then delete the TLS fixtures. They assert the exact Lovable destination and server-only Authorization header. They are not live Lovable generation and do not demonstrate image quality.
+The tests generate temporary TLS certificates and a synthetic server credential, inject controlled upstream responses, then delete the TLS fixtures. They assert the configured development Lovable destination and server-only Authorization header, required URL/public-DNS validation, and actual startup rejection before SQLite/listeners open. Upstream and DNS responses are controlled test fixtures. They are not live Lovable generation and do not demonstrate image quality.
 
 Start direct HTTPS locally using certificate/key paths supplied by the server operator:
 
 ```sh
+LOVABLE_GENERATE_URL=https://project--a55e5977-6867-4325-9a5e-5e9efbb3a82c-dev.lovable.app/api/public/emoji/generate \
 TLS_CERT_FILE=/path/to/cert.pem TLS_KEY_FILE=/path/to/key.pem \
 RELAY_DB_PATH=/persistent/path/relay.sqlite npm start
 ```
 
-Without `EMOJI_API_KEY`, the server deliberately runs in fail-closed mode: health 503, session issuance 503, generation 503, and no call to Lovable. A locally generated self-signed certificate is suitable only for local test clients that explicitly trust it. The Android production client uses normal platform certificate validation; no test CA is shipped in the APK.
+With valid upstream configuration but without `EMOJI_API_KEY`, the server deliberately runs in fail-closed mode: health 503, session issuance 503, generation 503, and no call to Lovable. Missing/invalid `LOVABLE_GENERATE_URL` instead prevents startup. A locally generated self-signed certificate is suitable only for local test clients that explicitly trust it. The Android production client uses normal platform certificate validation; no test CA is shipped in the APK.
 
 Once deployed and the secret is bound:
 

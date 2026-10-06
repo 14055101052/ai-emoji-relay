@@ -6,9 +6,10 @@ import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
-import { createRelay, RelayState, LOVABLE_ENDPOINT } from '../src/relay.mjs';
+import { createRelay, RelayState } from '../src/relay.mjs';
 
 // Synthetic server credential and controlled upstream responses: no live generation in tests.
+const TEST_URL = 'https://project--a55e5977-6867-4325-9a5e-5e9efbb3a82c-dev.lovable.app/api/public/emoji/generate';
 const TEST_KEY = 'synthetic-server-credential-for-relay-tests';
 const result = { success: true, id: 'fixture-id', name: 'BMW M4', imageUrl: 'https://storage.example.com/emoji.png?signature=temporary', mimeType: 'image/png', expiresInSeconds: 604800 };
 let directory, key, cert;
@@ -21,7 +22,7 @@ after(() => rmSync(directory, { recursive: true, force: true }));
 async function harness(t, options = {}) {
   const state = options.state ?? new RelayState(); const calls = [];
   const fetchImpl = options.fetchImpl ?? (async (url, request) => { calls.push({ url, request }); return Response.json({ ...result, unsafeExtra: TEST_KEY }); });
-  const server = https.createServer({ key, cert }, createRelay({ apiKey: TEST_KEY, state, fetchImpl, ...options }));
+  const server = https.createServer({ key, cert }, createRelay({ apiKey: TEST_KEY, generateUrl: TEST_URL, state, fetchImpl, ...options }));
   await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
   const agent = new https.Agent({ ca: cert });
   t.after(async () => { agent.destroy(); await new Promise(resolve => server.close(resolve)); state.close(); });
@@ -40,11 +41,11 @@ async function harness(t, options = {}) {
   return { state, calls, request, session, generate };
 }
 
-test('HTTPS sessions invoke only fixed Lovable URL with server auth and safe response projection', async t => {
+test('HTTPS sessions invoke configured Lovable URL with server auth and safe response projection', async t => {
   const h = await harness(t); const token = await h.session(); assert.match(token, /^[A-Za-z0-9_-]{43}$/u);
   const response = await h.generate(token); assert.equal(response.status, 200); assert.deepEqual(response.body, result);
   assert.equal(response.headers['cache-control'], 'no-store'); assert.equal(h.calls.length, 1);
-  const { url, request } = h.calls[0]; assert.equal(url, LOVABLE_ENDPOINT);
+  const { url, request } = h.calls[0]; assert.equal(url, TEST_URL);
   assert.equal(request.headers.Authorization, `Bearer ${TEST_KEY}`); assert.notEqual(request.headers.Authorization, `Bearer ${token}`);
   assert.equal(request.redirect, 'error'); assert.deepEqual(JSON.parse(request.body), { prompt: 'BMW M4 in Marina Bay Blue', style: 'Soft 3D' });
   assert.equal(response.raw.includes(TEST_KEY), false);
@@ -116,14 +117,14 @@ test('concurrency limit prevents another upstream call', async t => {
   release(); assert.equal((await first).status, 200);
 });
 test('HTTP cannot impersonate trusted TLS termination using forwarded headers', async t => {
-  const state = new RelayState(); const server = http.createServer(createRelay({ apiKey: TEST_KEY, state }));
+  const state = new RelayState(); const server = http.createServer(createRelay({ apiKey: TEST_KEY, generateUrl: TEST_URL, state }));
   await new Promise(r => server.listen(0, '127.0.0.1', r)); t.after(async () => { await new Promise(r => server.close(r)); state.close(); });
   const response = await fetch(`http://127.0.0.1:${server.address().port}/api/auth/session`, { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Forwarded-Proto': 'https', 'X-Forwarded-For': '8.8.8.8' }, body: '{}' });
   assert.equal(response.status, 403);
 });
 
 test('trusted loopback TLS proxy requires verified single-IP headers', async t => {
-  const state = new RelayState(); const server = http.createServer(createRelay({ apiKey: TEST_KEY, state, tlsTermination: 'reverse-proxy' }));
+  const state = new RelayState(); const server = http.createServer(createRelay({ apiKey: TEST_KEY, generateUrl: TEST_URL, state, tlsTermination: 'reverse-proxy' }));
   await new Promise(r => server.listen(0, '127.0.0.1', r)); t.after(async () => { await new Promise(r => server.close(r)); state.close(); });
   const url = `http://127.0.0.1:${server.address().port}/api/auth/session`;
   const request = headers => fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers }, body: '{}' });

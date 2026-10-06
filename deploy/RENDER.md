@@ -27,10 +27,11 @@ This is appropriate for a small, controlled development test, with conservative 
 | `GENERATION_DAILY_IP` | `5` (shared ingress scope, described below) |
 | `MAX_CONCURRENT_GENERATIONS` | `1` |
 | `EMOJI_API_KEY` | Bind the existing Lovable key as a server-only secret. No value belongs in source, chat or APK. |
+| `LOVABLE_GENERATE_URL` | `https://project--a55e5977-6867-4325-9a5e-5e9efbb3a82c-dev.lovable.app/api/public/emoji/generate` (required server-side URL; no fallback) |
 
 Leave `HOST` unset; Render mode binds **0.0.0.0**. Read Render's injected `PORT` (normally 10000); do not hardcode or override it. Do not set `TLS_CERT_FILE`, `TLS_KEY_FILE`, or `RENDER` yourself. Render injects `RENDER=true`, which this mode requires as a configuration guard, not cryptographic proof of ingress identity. An old `HOST=127.0.0.1` or old Caddy/direct-TLS settings will cause startup to reject the configuration.
 
-4. Deploy. `/healthz` returns only `{"ready":true}` when the server secret is configured. Without the secret it returns 503, and Render's readiness check will fail; configure the secret before expecting a healthy deployment. A 200 readiness check does not prove Lovable accepts the key.
+4. Redeploy the updated source. Render's existing `LOVABLE_GENERATE_URL` binding is now read and validated; retain/set the development value in the table above. Missing/invalid/non-public-DNS URL configuration fails startup, before opening a listener. Only this project's development/production HTTPS generation hosts are allowed; no endpoint configuration is taken from Android. `/healthz` returns only `{"ready":true}` when the server secret is configured. Without the secret it returns 503, and Render's readiness check will fail; configure the secret before expecting a healthy deployment. A 200 readiness check does not prove Lovable accepts the key. Android and the APK need no change for this upstream routing fix.
 5. With the deployed HTTPS origin, check routes from your workstation:
 
 ```sh

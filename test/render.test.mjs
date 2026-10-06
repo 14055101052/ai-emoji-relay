@@ -3,18 +3,19 @@ import assert from 'node:assert/strict';
 import http from 'node:http';
 import { once } from 'node:events';
 import { spawn } from 'node:child_process';
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createRelay, RelayState, LOVABLE_ENDPOINT } from '../src/relay.mjs';
+import { createRelay, RelayState } from '../src/relay.mjs';
 import { runtimeConfig } from '../src/runtime-config.mjs';
 
+const TEST_URL = 'https://project--a55e5977-6867-4325-9a5e-5e9efbb3a82c-dev.lovable.app/api/public/emoji/generate';
 const TEST_KEY = 'synthetic-server-credential-for-render-tests';
-const renderEnv = { RENDER: 'true', TLS_TERMINATION: 'render', PORT: '10000', NODE_ENV: 'development', RELAY_STORAGE_MODE: 'ephemeral-development' };
+const renderEnv = { LOVABLE_GENERATE_URL: TEST_URL, RENDER: 'true', TLS_TERMINATION: 'render', PORT: '10000', NODE_ENV: 'development', RELAY_STORAGE_MODE: 'ephemeral-development' };
 const generated = { success: true, id: 'fixture', name: 'BMW M4', imageUrl: 'https://storage.example.com/fixture.png', mimeType: 'image/png', expiresInSeconds: 604800 };
 async function harness(t, options = {}) {
   const state = new RelayState(); const calls = [];
-  const server = http.createServer(createRelay({ apiKey: TEST_KEY, state, tlsTermination: 'render',
+  const server = http.createServer(createRelay({ apiKey: TEST_KEY, generateUrl: TEST_URL, state, tlsTermination: 'render',
     fetchImpl: async (url, request) => { calls.push({ url, request }); return Response.json({ ...generated, discarded: TEST_KEY }); }, ...options }));
   await new Promise(resolve => server.listen(0, '0.0.0.0', resolve));
   t.after(async () => { await new Promise(resolve => server.close(resolve)); state.close(); });
@@ -49,16 +50,16 @@ test('Render persistent mode requires absolute configured disk path and retains 
   assert.equal(config.ephemeral, false); assert.equal(config.generationDailyGlobal, 50); assert.equal(config.generationDailyIP, 5); assert.equal(config.maxConcurrent, 2);
 });
 test('existing direct and loopback proxy modes remain strict', () => {
-  assert.equal(runtimeConfig({ TLS_CERT_FILE: 'cert', TLS_KEY_FILE: 'key' }).mode, 'direct');
-  assert.equal(runtimeConfig({ TLS_TERMINATION: 'reverse-proxy' }).host, '127.0.0.1');
-  for (const env of [{}, { TLS_TERMINATION: 'unknown' }, { TLS_TERMINATION: 'reverse-proxy', HOST: '0.0.0.0' }, { TLS_CERT_FILE: 'cert' }]) assert.throws(() => runtimeConfig(env));
+  assert.equal(runtimeConfig({ LOVABLE_GENERATE_URL: TEST_URL, TLS_CERT_FILE: 'cert', TLS_KEY_FILE: 'key' }).mode, 'direct');
+  assert.equal(runtimeConfig({ LOVABLE_GENERATE_URL: TEST_URL, TLS_TERMINATION: 'reverse-proxy' }).host, '127.0.0.1');
+  for (const env of [{}, { TLS_TERMINATION: 'unknown' }, { TLS_TERMINATION: 'reverse-proxy', HOST: '0.0.0.0' }, { TLS_CERT_FILE: 'cert' }]) assert.throws(() => runtimeConfig({ LOVABLE_GENERATE_URL: TEST_URL, ...env }));
 });
 test('Render HTTP ingress obtains short-lived session and forwards safe generation only to Lovable', async t => {
   const h = await harness(t); const issued = await h.session(); assert.equal(issued.status, 200); assert.equal(issued.body.expiresInSeconds, 3600);
   assert.match(issued.body.token, /^[A-Za-z0-9_-]{43}$/u);
   const result = await h.generate(issued.body.token); assert.equal(result.status, 200); assert.deepEqual(result.body, generated);
   assert.equal(result.headers.get('cache-control'), 'no-store'); assert.equal(h.calls.length, 1);
-  assert.equal(h.calls[0].url, LOVABLE_ENDPOINT); assert.equal(h.calls[0].request.headers.Authorization, `Bearer ${TEST_KEY}`);
+  assert.equal(h.calls[0].url, TEST_URL); assert.equal(h.calls[0].request.headers.Authorization, `Bearer ${TEST_KEY}`);
   assert.deepEqual(JSON.parse(h.calls[0].request.body), { prompt: 'BMW M4 in Marina Bay Blue', style: 'Soft 3D' });
   assert.equal(JSON.stringify(result.body).includes(TEST_KEY), false);
   assert.notEqual(h.state.db.prepare('SELECT hash FROM sessions').get().hash, issued.body.token);
@@ -110,7 +111,9 @@ test('actual Render entry point starts without TLS files, accepts health probe a
   const dir = mkdtempSync(join(tmpdir(), 'render-entry-'));
   const reservation = http.createServer(); await new Promise(r => reservation.listen(0, '127.0.0.1', r));
   const port = reservation.address().port; await new Promise(r => reservation.close(r));
-  const child = spawn(process.execPath, [new URL('../src/server.mjs', import.meta.url).pathname], {
+  const dnsFixture = join(dir, 'dns-fixture.mjs');
+  writeFileSync(dnsFixture, "import dns from 'node:dns'; dns.promises.lookup = async () => [{ address: '104.16.1.1', family: 4 }];");
+  const child = spawn(process.execPath, ['--import', dnsFixture, new URL('../src/server.mjs', import.meta.url).pathname], {
     env: { PATH: process.env.PATH, ...renderEnv, PORT: String(port), RELAY_DB_PATH: join(dir, 'relay.sqlite') }, stdio: ['ignore', 'pipe', 'pipe'] });
   const exited = once(child, 'exit'); let stdout = '', stderr = '';
   child.stdout.on('data', c => { stdout += c; }); child.stderr.on('data', c => { stderr += c; });
@@ -123,4 +126,37 @@ test('actual Render entry point starts without TLS files, accepts health probe a
   const response = await fetch(`http://127.0.0.1:${port}/healthz`); assert.equal(response.status, 503); assert.deepEqual(await response.json(), { ready: false });
   assert.match(stdout, /DEVELOPMENT ONLY/); assert.match(stdout, /share the conservative IP quota/);
   assert.equal((stdout + stderr).includes(TEST_KEY), false);
+});
+
+test('actual Render server uses LOVABLE_GENERATE_URL for authenticated generation, not former production fallback', async t => {
+  const dir = mkdtempSync(join(tmpdir(), 'render-upstream-env-'));
+  const reservation = http.createServer(); await new Promise(r => reservation.listen(0, '127.0.0.1', r));
+  const port = reservation.address().port; await new Promise(r => reservation.close(r));
+  const preload = join(dir, 'upstream-fixture.mjs');
+  // Test-only seams in a temporary child preload: production startup/configuration
+  // and real HTTP handlers run unchanged; no live provider secret/image is used.
+  writeFileSync(preload, `import dns from 'node:dns';
+    dns.promises.lookup = async () => [{ address: '104.16.1.1', family: 4 }];
+    globalThis.fetch = async (url, request) => {
+      if (url !== process.env.LOVABLE_GENERATE_URL || request.headers.Authorization !== 'Bearer ' + process.env.EMOJI_API_KEY || request.redirect !== 'error') throw new Error('INVALID_FORWARDING');
+      const body = JSON.parse(request.body);
+      if (body.prompt !== 'BMW M4 in Marina Bay Blue' || body.style !== 'Soft 3D' || Object.keys(body).length !== 2) throw new Error('INVALID_PROMPT');
+      return Response.json(${JSON.stringify(generated)});
+    };`);
+  const child = spawn(process.execPath, ['--import', preload, new URL('../src/server.mjs', import.meta.url).pathname], {
+    env: { PATH: process.env.PATH, ...renderEnv, PORT: String(port), RELAY_DB_PATH: join(dir, 'relay.sqlite'), EMOJI_API_KEY: TEST_KEY }, stdio: ['ignore', 'pipe', 'pipe'] });
+  const exited = once(child, 'exit'); let stdout = '', stderr = '';
+  child.stdout.on('data', c => { stdout += c; }); child.stderr.on('data', c => { stderr += c; });
+  t.after(async () => { if (child.exitCode === null) child.kill('SIGTERM'); await exited; rmSync(dir, { recursive: true, force: true }); });
+  await new Promise((resolve, reject) => {
+    const timer = setTimeout(() => reject(new Error('Render server did not start.')), 5000);
+    child.stdout.on('data', () => { if (stdout.includes('relay listening')) { clearTimeout(timer); resolve(); } });
+    child.once('exit', () => { clearTimeout(timer); reject(new Error('Render entry point failed.')); });
+  });
+  const base = `http://127.0.0.1:${port}`;
+  const issued = await fetch(base + '/api/auth/session', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Forwarded-Proto': 'https' }, body: '{}' });
+  assert.equal(issued.status, 200); const session = await issued.json();
+  const response = await fetch(base + '/api/emoji/generate', { method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Forwarded-Proto': 'https', Authorization: `Bearer ${session.token}` }, body: JSON.stringify({ prompt: 'BMW M4 in Marina Bay Blue', style: 'Soft 3D' }) });
+  assert.equal(response.status, 200); assert.deepEqual(await response.json(), generated);
+  assert.equal((stdout + stderr).includes(TEST_KEY), false); assert.equal((stdout + stderr).includes(session.token), false);
 });

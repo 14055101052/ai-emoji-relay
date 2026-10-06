@@ -3,12 +3,14 @@ import http from 'node:http';
 import { readFileSync } from 'node:fs';
 import { RelayState, createRelay } from './relay.mjs';
 import { runtimeConfig } from './runtime-config.mjs';
+import { validateUpstreamDns } from './upstream-url.mjs';
 
 try {
   process.umask(0o077);
   const config = runtimeConfig();
+  await validateUpstreamDns(config.generateUrl);
   const state = new RelayState(config.dbPath);
-  const handler = createRelay({ apiKey: process.env.EMOJI_API_KEY ?? '', state, tlsTermination: config.mode,
+  const handler = createRelay({ apiKey: process.env.EMOJI_API_KEY ?? '', generateUrl: config.generateUrl, state, tlsTermination: config.mode,
     generationDailyGlobal: config.generationDailyGlobal, generationDailyIP: config.generationDailyIP,
     maxConcurrent: config.maxConcurrent });
   const direct = config.mode === 'direct';
@@ -24,4 +26,4 @@ try {
   });
   function stop() { server.close(() => { state.close(); process.exit(0); }); setTimeout(() => process.exit(1), 10000).unref(); }
   process.on('SIGTERM', stop); process.on('SIGINT', stop);
-} catch { process.stderr.write('Relay startup failed. Check TLS/proxy mode, explicit Render storage mode, writable SQLite path, PORT, and numeric configuration.\n'); process.exitCode = 1; }
+} catch { process.stderr.write('Relay startup failed. Check required LOVABLE_GENERATE_URL (HTTPS, approved project host, public DNS), TLS/proxy mode, explicit Render storage mode, writable SQLite path, PORT, and numeric configuration.\n'); process.exitCode = 1; }

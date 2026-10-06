@@ -3,8 +3,8 @@ import { DatabaseSync } from 'node:sqlite';
 import { isIP } from 'node:net';
 import { mkdirSync, chmodSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { validateUpstreamUrl } from './upstream-url.mjs';
 
-export const LOVABLE_ENDPOINT = 'https://project--a55e5977-6867-4325-9a5e-5e9efbb3a82c.lovable.app/api/public/emoji/generate';
 const MAX_BODY = 4096;
 const MAX_RESPONSE = 65536;
 const invalidControls = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u;
@@ -151,10 +151,11 @@ function clientIP(req, config) {
   return peer; // Ignore forwarded IP headers on direct HTTPS connections.
 }
 
-/** Production always uses the fixed Lovable endpoint. fetchImpl/clock are only seams for component tests. */
-export function createRelay({ apiKey = '', state = new RelayState(), fetchImpl = globalThis.fetch, clock = seconds,
+/** Production passes the validated server environment URL. fetchImpl/clock are test seams. */
+export function createRelay({ apiKey = '', generateUrl, state = new RelayState(), fetchImpl = globalThis.fetch, clock = seconds,
   sessionTTL = 3600, timeoutMs = 150000, maxConcurrent = 2, generationDailyGlobal = 50, generationDailyIP = 5,
   tlsTermination = 'direct', trustedProxyIPs = ['127.0.0.1', '::1'] } = {}) {
+  const upstreamUrl = validateUpstreamUrl(generateUrl);
   let active = 0; let pruneAt = 0;
   const config = { tlsTermination, trustedProxyIPs };
   return async function handle(req, res) {
@@ -194,7 +195,7 @@ export function createRelay({ apiKey = '', state = new RelayState(), fetchImpl =
       timeout = setTimeout(() => abort.abort(), timeoutMs);
       disconnect = () => { if (!res.writableEnded) abort.abort(); };
       res.once('close', disconnect);
-      const upstream = await fetchImpl(LOVABLE_ENDPOINT, { method: 'POST', redirect: 'error', signal: abort.signal,
+      const upstream = await fetchImpl(upstreamUrl, { method: 'POST', redirect: 'error', signal: abort.signal,
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}`,
           'User-Agent': 'AIEmojiKeyboard-Relay/1.0' }, body: JSON.stringify(input) });
       if (upstream.status !== 200) {
@@ -223,4 +224,4 @@ export function createRelay({ apiKey = '', state = new RelayState(), fetchImpl =
       if (charged) active--;
     }
   };
-                                 }
+}
