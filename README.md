@@ -1,6 +1,6 @@
 # AI Emoji secure relay
 
-Minimal Node.js 24 HTTPS service. No third-party runtime dependencies, no alternative image engine. The server calls only:
+Minimal Node.js 24 service with direct HTTPS, local TLS proxy, or explicit Render-managed HTTPS termination. No third-party runtime dependencies, no alternative image engine. The server calls only:
 
 `https://project--a55e5977-6867-4325-9a5e-5e9efbb3a82c.lovable.app/api/public/emoji/generate`
 
@@ -14,7 +14,11 @@ The permanent Lovable key is read from the server environment; it is never retur
 | POST | `/api/auth/session` | None | Request `{}`. Response `{"token":"<short-lived opaque token>","expiresInSeconds":3600}`. |
 | POST | `/api/emoji/generate` | `Authorization: Bearer <short-lived-token>` | Strict prompt/style request; forwards safe six-field generation response. |
 
-All public routes require HTTPS. No CORS access is enabled, since the client is native Android. Request and response JSON are `Cache-Control: no-store`.
+Public API calls require HTTPS. Render mode additionally permits an internal HTTP readiness probe on the exact read-only `GET /healthz` route. No CORS access is enabled, since the client is native Android. Request and response JSON are `Cache-Control: no-store`.
+
+## Render Web Service
+
+See [deploy/RENDER.md](deploy/RENDER.md) for exact Free/paid setup. Render mode binds `0.0.0.0`, uses the injected `PORT`, and accepts Render's HTTPS termination without Caddy or certificate files. It requires explicit storage selection. **Render Free ephemeral SQLite is development-only:** filesystem loss invalidates sessions and resets cost budgets. Production requires an attached persistent disk (one instance) or an implemented durable shared state/concurrency store. Render mode conservatively shares existing IP quotas across all clients and ignores caller-controlled IP headers.
 
 Generation request:
 
@@ -36,10 +40,11 @@ The relay forwards only these response fields. The Android app immediately downl
 | --- | --- |
 | `EMOJI_API_KEY` | **Required server-only secret** from the existing Lovable backend. Provision through the hosting provider's secret manager or a root-protected environment file. Never add its value to source, chat, APK, Android Settings or Gradle properties. |
 | `RELAY_DB_PATH` | Persistent writable SQLite file; default `./data/relay.sqlite`. Production service uses `/var/lib/ai-emoji-relay/relay.sqlite`. |
-| `TLS_TERMINATION` | Set `reverse-proxy` for the supplied Caddy deployment. Otherwise provide both direct TLS certificate variables below. |
+| `TLS_TERMINATION` | `reverse-proxy` for supplied Caddy; `render` for Render Web Service; `direct` (or unset with both TLS certificate paths) for direct HTTPS. |
+| `RELAY_STORAGE_MODE` | Required in Render mode: `persistent`, or `ephemeral-development` with `NODE_ENV=development`. Never use ephemeral mode for production. |
 | `TLS_CERT_FILE`, `TLS_KEY_FILE` | Required only for direct HTTPS: paths to your server's valid certificate chain and private key. Never bundle the key with source/APK. |
-| `HOST` | Default `127.0.0.1`. Reverse-proxy mode enforces loopback binding. Direct TLS may use `0.0.0.0`. |
-| `PORT` | Default `8787`. |
+| `HOST` | Default `127.0.0.1` outside Render. Reverse-proxy mode enforces loopback; Render enforces `0.0.0.0`; direct TLS may use `0.0.0.0`. |
+| `PORT` | Default `8787` outside Render. Render mode requires and uses Render's injected value. |
 | `GENERATION_DAILY_GLOBAL` | Default `50` attempts per UTC calendar day, across all anonymous clients. |
 | `GENERATION_DAILY_IP` | Default `5` attempts per IP per UTC calendar day. |
 | `MAX_CONCURRENT_GENERATIONS` | Default `2`, maximum `10`. |
@@ -108,8 +113,8 @@ This issues a session, submits **BMW M4 in Marina Bay Blue**, downloads the retu
 
 Anonymous issuance is intentionally public; it does not prove that the caller is an authentic Android app. V1 therefore includes conservative server-enforced quotas and a global cost budget. Increasing these for public scale requires stronger user/device verification and suitable operational limits.
 
-Limits are persistent and transactional: 30 requests/IP/minute; 300 requests globally/minute; six issued sessions/IP/hour; twelve/IP/day; 100 sessions globally/hour; two generation attempts/session/minute; five/session/hour; five/IP/day and fifty globally/day by default. Shared Wi-Fi/NAT users share the IP quota. Generation attempts count even if the upstream fails, so failed attempts cannot bypass cost protection. 429 includes Retry-After. Limits use fixed UTC windows and survive service restarts.
+Limits are transactional: 30 requests/IP/minute; 300 requests globally/minute; six issued sessions/IP/hour; twelve/IP/day; 100 sessions globally/hour; two generation attempts/session/minute; five/session/hour; five/IP/day and fifty globally/day by default. Shared Wi-Fi/NAT users share the IP quota; Render mode shares the IP scope across all clients. Generation attempts count even if the upstream fails, so failed attempts cannot bypass cost protection. 429 includes Retry-After. Limits use fixed UTC windows and survive restarts only when SQLite files survive. Render Free's explicitly opted-in development storage provides no durable budget guarantee.
 
 Bodies are limited to 4096 bytes; prompts to 500 UTF-16 characters; style to `Soft 3D`; extra fields, compressed requests, control characters and invalid JSON are rejected. Upstream reads are bounded to 64 KiB and 150 seconds; redirects are refused so credentials cannot be forwarded to another server. PNG URLs must be safe HTTPS URLs; response bodies/errors are never forwarded wholesale. Unknown fields and any known credential appearing in a safe field are suppressed.
 
-SQLite stores only token hashes, expiries, quota counters, and a private random IP-hash pepper. It stores no prompts, messages or raw IPs. Tokens, prompts, request bodies and upstream errors are not logged. HTTPS, body/time limits, and loopback-only trusted proxy configuration are required; never expose the unencrypted reverse-proxy port publicly.
+SQLite stores only token hashes, expiries, quota counters, and a private random IP-hash pepper. It stores no prompts, messages or raw IPs. Tokens, prompts, request bodies and upstream errors are not logged. Public HTTPS and body/time limits are required. Local proxy mode binds only loopback; Render mode relies on its managed ingress/private-network boundary. Never expose either unencrypted origin directly to the public internet.
