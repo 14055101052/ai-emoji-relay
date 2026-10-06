@@ -134,6 +134,14 @@ const normalizeIP = ip => ip?.startsWith('::ffff:') ? ip.slice(7) : ip;
 function clientIP(req, config) {
   const peer = normalizeIP(req.socket.remoteAddress);
   if (!req.socket.encrypted) {
+    if (config.tlsTermination === 'render') {
+      if (req.headers['x-forwarded-proto'] !== 'https')
+        throw new HttpFailure(403, 'HTTPS_REQUIRED', 'HTTPS is required.');
+      // Render owns ingress TLS. Do not infer client identity from caller-controlled
+      // X-Forwarded-For/Forwarded headers or private proxy addresses. All clients
+      // share one conservative IP scope; session/global/concurrency limits remain.
+      return 'render-shared-ingress';
+    }
     if (config.tlsTermination !== 'reverse-proxy' || !config.trustedProxyIPs.includes(peer) || req.headers['x-forwarded-proto'] !== 'https')
       throw new HttpFailure(403, 'HTTPS_REQUIRED', 'HTTPS is required.');
     const ip = req.headers['x-forwarded-for'];
@@ -152,6 +160,11 @@ export function createRelay({ apiKey = '', state = new RelayState(), fetchImpl =
   return async function handle(req, res) {
     let timeout; let charged = false; let abort; let disconnect;
     try {
+      // Render's internal HTTP readiness probe may omit forwarding headers.
+      // This exact read-only route returns only a boolean, no auth/session data.
+      if (tlsTermination === 'render' && req.url === '/healthz' && req.method === 'GET') {
+        reply(res, apiKey ? 200 : 503, { ready: !!apiKey }); return;
+      }
       const ip = clientIP(req, config);
       if (req.url === '/healthz' && req.method === 'GET') { reply(res, apiKey ? 200 : 503, { ready: !!apiKey }); return; }
       if (req.method !== 'POST' || !['/api/auth/session', '/api/emoji/generate'].includes(req.url)) {
@@ -210,4 +223,4 @@ export function createRelay({ apiKey = '', state = new RelayState(), fetchImpl =
       if (charged) active--;
     }
   };
-                                                                                  }
+                                 }
