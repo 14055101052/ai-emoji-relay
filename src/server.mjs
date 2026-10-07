@@ -1,12 +1,14 @@
 import https from 'node:https';
 import http from 'node:http';
 import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { RelayState, createRelay } from './relay.mjs';
 import { runtimeConfig } from './runtime-config.mjs';
 import { validateUpstreamDns } from './upstream-url.mjs';
 import { createPollinationsFallback } from './pollinations-fallback.mjs';
 import { createAIHordeFallback } from './aihorde-fallback.mjs';
 import { probePollinations } from './provider-probe.mjs';
+import { createImportedEmojiLibrary } from './imported-emoji-library.mjs';
 
 try {
   process.umask(0o077);
@@ -14,6 +16,12 @@ try {
   await validateUpstreamDns(config.generateUrl);
   const state = new RelayState(config.dbPath);
   const publicBaseUrl = process.env.PUBLIC_BASE_URL ?? 'https://ai-emoji-relay.onrender.com';
+  const importedLibrary = createImportedEmojiLibrary({
+    publicBaseUrl,
+    storageDir: process.env.EMOJI_LIBRARY_DIR ?? join(dirname(config.dbPath), 'imported-emojis'),
+    importSecret: (process.env.EMOJI_IMPORT_SECRET ?? process.env.EMOJI_API_KEY ?? '').trim(),
+    state
+  });
   const pollinations = createPollinationsFallback({
     publicBaseUrl,
     apiKey: (process.env.POLLINATIONS_API_KEY ?? '').trim()
@@ -35,6 +43,7 @@ try {
     maxConcurrent: config.maxConcurrent
   });
   const handler = (req, res) => {
+    if (importedLibrary.handle(req, res)) return;
     if (pollinations?.serveImage(req, res)) return;
     if (horde?.serveImage(req, res)) return;
     return relayHandler(req, res);
@@ -46,9 +55,10 @@ try {
   server.on('error', () => { process.stderr.write('Relay listener failed. Check server configuration.\n'); process.exitCode = 1; });
   server.listen(config.port, config.host, () => {
     process.stdout.write('AI Emoji relay listening. No request logging is enabled.\n');
-    if (config.ephemeral) process.stdout.write('DEVELOPMENT ONLY: ephemeral SQLite loses sessions and quota budgets on filesystem reset; unsuitable for production.\n');
+    if (config.ephemeral) process.stdout.write('DEVELOPMENT ONLY: ephemeral SQLite and imported emoji files are lost on filesystem reset; unsuitable for production persistence.\n');
     if (config.mode === 'render') process.stdout.write('Render ingress mode: all clients share the conservative IP quota bucket; forwarded client-IP headers are ignored.\n');
     if (!process.env.EMOJI_API_KEY) process.stdout.write('Backend credential missing; session issuance and generation are disabled (503).\n');
+    process.stdout.write(`Imported emoji library enabled with ${importedLibrary.count()} saved item(s).\n`);
     process.stdout.write(pollinations ? 'Pollinations public image fallback enabled.\n' : 'Pollinations fallback unavailable because PUBLIC_BASE_URL is invalid.\n');
     process.stdout.write(horde ? 'AI Horde last-resort fallback enabled.\n' : 'AI Horde fallback unavailable because PUBLIC_BASE_URL is invalid.\n');
     probePollinations().then(result => {
@@ -59,4 +69,4 @@ try {
   });
   function stop() { server.close(() => { state.close(); process.exit(0); }); setTimeout(() => process.exit(1), 10000).unref(); }
   process.on('SIGTERM', stop); process.on('SIGINT', stop);
-} catch { process.stderr.write('Relay startup failed. Check required LOVABLE_GENERATE_URL (HTTPS, approved project host, public DNS), TLS/proxy mode, explicit Render storage mode, writable SQLite path, PORT, and numeric configuration.\n'); process.exitCode = 1; }
+} catch { process.stderr.write('Relay startup failed. Check required LOVABLE_GENERATE_URL (HTTPS, approved project host, public DNS), TLS/proxy mode, storage configuration, writable SQLite/library paths, PORT, and numeric configuration.\n'); process.exitCode = 1; }
