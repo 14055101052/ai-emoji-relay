@@ -1,0 +1,35 @@
+name: Build AI Emoji Keyboard
+
+on:
+  push:
+    paths:
+      - 'android-build/**'
+      - '.github/workflows/android-keyboard.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+      - name: Restore Android source
+        run: |
+          mkdir -p work
+          base64 -d android-build/android-app-1.2.0.tar.gz.b64 > work/android-app.tar.gz
+          tar -xzf work/android-app.tar.gz -C work
+      - name: Build debug APK
+        run: gradle -p work/android-app :app:assembleDebug
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: AI-Emoji-Keyboard-v1.2.0-debug
+          path: work/android-app/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
