@@ -30,6 +30,7 @@ jobs:
           cat android-build/chunks/chunk-* | base64 -d > work/android-app.tar.gz
           tar -tzf work/android-app.tar.gz >/dev/null
           tar -xzf work/android-app.tar.gz -C work
+          sed -i 's/Ui\.column(/Ui.col(/g' work/android-app/app/src/main/java/com/mehan/emojikeyboard/EmojiKeyboardService.java
       - name: Build debug APK
         run: gradle -p work/android-app :app:assembleDebug --stacktrace
       - name: Upload APK
