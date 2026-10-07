@@ -16,17 +16,21 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - uses: android-actions/setup-android@v3
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.13'
+      - name: Install Android SDK packages
+        run: |
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "platform-tools" "platforms;android-35" "build-tools;35.0.0"
       - name: Restore Android source
         run: |
           mkdir -p work
           base64 -d android-build/android-app-1.2.0.tar.gz.b64 > work/android-app.tar.gz
           tar -xzf work/android-app.tar.gz -C work
       - name: Build debug APK
-        run: gradle -p work/android-app :app:assembleDebug
+        run: gradle -p work/android-app :app:assembleDebug --stacktrace
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
