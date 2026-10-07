@@ -1,7 +1,10 @@
 import { randomBytes } from 'node:crypto';
 import sharp from 'sharp';
 
-const MODEL = '@cf/black-forest-labs/flux-2-klein-9b';
+const MODELS = [
+  '@cf/black-forest-labs/flux-2-klein-9b',
+  '@cf/black-forest-labs/flux-2-klein-4b'
+];
 const IMAGE_TTL_SECONDS = 3600;
 const MAX_GENERATED_BYTES = 12 * 1024 * 1024;
 
@@ -66,6 +69,33 @@ async function removeEdgeBackground(input) {
   return sharp(data, { raw: { width, height, channels: 4 } }).png({ compressionLevel: 9 }).toBuffer();
 }
 
+async function cloudflareRequest(fetchImpl, accountId, token, model, prompt, signal) {
+  const form = new FormData();
+  form.append('prompt', enhancePrompt(prompt));
+  form.append('width', '1024');
+  form.append('height', '1024');
+
+  // Serialize exactly as Cloudflare documents so the multipart boundary is explicit.
+  const serialized = new Response(form);
+  const contentType = serialized.headers.get('content-type');
+  const body = await serialized.arrayBuffer();
+  const endpoint = `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(accountId)}/ai/run/${model}`;
+  const response = await fetchImpl(endpoint, {
+    method: 'POST', redirect: 'error', signal,
+    headers: { Authorization: `Bearer ${token}`, 'Content-Type': contentType }, body
+  });
+  if (!response.ok) {
+    let safeCode = '';
+    try {
+      const errorBody = await response.json();
+      const code = errorBody?.errors?.[0]?.code ?? errorBody?.code;
+      if (Number.isInteger(code) || (typeof code === 'string' && /^[A-Za-z0-9_-]{1,40}$/u.test(code))) safeCode = `_${code}`;
+    } catch { await response.body?.cancel().catch(() => {}); }
+    throw new Error(`CLOUDFLARE_${response.status}${safeCode}`);
+  }
+  return response.json();
+}
+
 export function createCloudflareFallback({ accountId, token, publicBaseUrl, fetchImpl = globalThis.fetch } = {}) {
   if (!validAccountId(accountId) || !validToken(token)) return null;
   let base;
@@ -80,17 +110,18 @@ export function createCloudflareFallback({ accountId, token, publicBaseUrl, fetc
   }
 
   async function generate(input, signal) {
-    const form = new FormData();
-    form.append('prompt', enhancePrompt(input.prompt));
-    form.append('width', '1024');
-    form.append('height', '1024');
-    const endpoint = `https://api.cloudflare.com/client/v4/accounts/${encodeURIComponent(accountId)}/ai/run/${MODEL}`;
-    const response = await fetchImpl(endpoint, {
-      method: 'POST', redirect: 'error', signal,
-      headers: { Authorization: `Bearer ${token}` }, body: form
-    });
-    if (!response.ok) { await response.body?.cancel().catch(() => {}); throw new Error(`CLOUDFLARE_${response.status}`); }
-    const payload = await response.json();
+    let payload; let lastError;
+    for (const model of MODELS) {
+      try {
+        payload = await cloudflareRequest(fetchImpl, accountId, token, model, input.prompt, signal);
+        break;
+      } catch (error) {
+        lastError = error;
+        const message = String(error?.message ?? '');
+        if (!/^CLOUDFLARE_5\d\d/u.test(message)) throw error;
+      }
+    }
+    if (!payload) throw lastError ?? new Error('CLOUDFLARE_UNAVAILABLE');
     const encoded = payload?.result?.image ?? payload?.image;
     if (typeof encoded !== 'string' || encoded.length < 100 || encoded.length > MAX_GENERATED_BYTES * 1.5) throw new Error('INVALID_CLOUDFLARE_IMAGE');
     const source = Buffer.from(encoded, 'base64');
@@ -118,6 +149,7 @@ export function createCloudflareFallback({ accountId, token, publicBaseUrl, fetc
     try {
       const fallback = await generate(input, init.signal);
       await primary.body?.cancel().catch(() => {});
+      process.stdout.write('[emoji-relay] fallback_status=200\n');
       return new Response(JSON.stringify(fallback), {
         status: 200,
         headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }
