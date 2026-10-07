@@ -27,7 +27,13 @@ jobs:
       - name: Restore Android source
         run: |
           mkdir -p work
-          base64 -d android-build/android-app-1.2.0.tar.gz.b64 > work/android-app.tar.gz
+          python3 - <<'PY'
+          import base64, pathlib, re
+          raw = pathlib.Path('android-build/android-app-1.2.0.tar.gz.b64').read_text()
+          clean = re.sub(r'[^A-Za-z0-9+/=]', '', raw)
+          pathlib.Path('work/android-app.tar.gz').write_bytes(base64.b64decode(clean, validate=False))
+          PY
+          tar -tzf work/android-app.tar.gz >/dev/null
           tar -xzf work/android-app.tar.gz -C work
       - name: Build debug APK
         run: gradle -p work/android-app :app:assembleDebug --stacktrace
