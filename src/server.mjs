@@ -6,6 +6,7 @@ import { runtimeConfig } from './runtime-config.mjs';
 import { validateUpstreamDns } from './upstream-url.mjs';
 import { createPollinationsFallback } from './pollinations-fallback.mjs';
 import { createAIHordeFallback } from './aihorde-fallback.mjs';
+import { probePollinations } from './provider-probe.mjs';
 
 try {
   process.umask(0o077);
@@ -50,6 +51,11 @@ try {
     if (!process.env.EMOJI_API_KEY) process.stdout.write('Backend credential missing; session issuance and generation are disabled (503).\n');
     process.stdout.write(pollinations ? 'Pollinations public image fallback enabled.\n' : 'Pollinations fallback unavailable because PUBLIC_BASE_URL is invalid.\n');
     process.stdout.write(horde ? 'AI Horde last-resort fallback enabled.\n' : 'AI Horde fallback unavailable because PUBLIC_BASE_URL is invalid.\n');
+    probePollinations().then(result => {
+      process.stdout.write(`[emoji-relay] pollinations_probe=${result.ok ? '200' : result.code}\n`);
+    }).catch(() => {
+      process.stdout.write('[emoji-relay] pollinations_probe=EXCEPTION\n');
+    });
   });
   function stop() { server.close(() => { state.close(); process.exit(0); }); setTimeout(() => process.exit(1), 10000).unref(); }
   process.on('SIGTERM', stop); process.on('SIGINT', stop);
