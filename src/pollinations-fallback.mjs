@@ -1,10 +1,10 @@
 import { randomBytes } from 'node:crypto';
 import sharp from 'sharp';
 
-const POLLINATIONS_BASE = 'https://gen.pollinations.ai/image/';
 const IMAGE_TTL_SECONDS = 3600;
 const MAX_GENERATED_BYTES = 12 * 1024 * 1024;
-const PROVIDER_TIMEOUT_MS = 45000;
+const PROVIDER_TIMEOUT_MS = 35000;
+const PUBLIC_IMAGE_BASE = 'https://image.pollinations.ai/prompt/';
 
 function enhancePrompt(prompt) {
   return `premium mobile emoji sticker of ${prompt}, soft 3D render, cute rounded proportions, polished materials, expressive details, centered single subject, full subject visible, clean silhouette, studio lighting, pure white background, no scenery, no text, no border, no frame, no watermark`;
@@ -86,12 +86,14 @@ export function createPollinationsFallback({ publicBaseUrl, apiKey = process.env
     parentSignal?.addEventListener('abort', onAbort, { once: true });
     try {
       const prompt = encodeURIComponent(enhancePrompt(input.prompt));
-      const url = new URL(`${POLLINATIONS_BASE}${prompt}`);
+      const url = new URL(`${PUBLIC_IMAGE_BASE}${prompt}`);
       url.searchParams.set('model', 'flux');
       url.searchParams.set('width', '768');
       url.searchParams.set('height', '768');
       url.searchParams.set('nologo', 'true');
       url.searchParams.set('enhance', 'false');
+      url.searchParams.set('safe', 'true');
+      url.searchParams.set('private', 'true');
       const headers = { 'User-Agent': 'AIEmojiKeyboard-Relay/1.0' };
       if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
       const response = await fetchImpl(url, { method: 'GET', headers, redirect: 'follow', signal: controller.signal });
@@ -131,10 +133,7 @@ export function createPollinationsFallback({ publicBaseUrl, apiKey = process.env
       const fallback = await generate(input, init.signal);
       await primary.body?.cancel().catch(() => {});
       process.stdout.write('[emoji-relay] pollinations_status=200\n');
-      return new Response(JSON.stringify(fallback), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }
-      });
+      return new Response(JSON.stringify(fallback), { status: 200, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' } });
     } catch (error) {
       const safe = String(error?.message ?? 'unknown').replace(/[^A-Za-z0-9_-]/gu, '_').slice(0, 80);
       process.stdout.write(`[emoji-relay] pollinations_error=${safe}\n`);
@@ -146,14 +145,7 @@ export function createPollinationsFallback({ publicBaseUrl, apiKey = process.env
     if (!['GET', 'HEAD'].includes(req.method ?? '')) return false;
     let pathname;
     try { pathname = new URL(req.url ?? '/', 'https://relay.invalid').pathname; } catch { return false; }
-    const patterns = [
-      /^\/api\/emoji\/image\/(?:pollinations-)?([A-Za-z0-9_-]{32})(?:\.png)?\/?$/u,
-      /^\/api\/emoji\/(?:pollinations-)?([A-Za-z0-9_-]{32})(?:\.png)?\/?$/u,
-      /^\/api\/public\/emoji\/image\/(?:pollinations-)?([A-Za-z0-9_-]{32})(?:\.png)?\/?$/u,
-      /^\/api\/public\/emoji\/(?:pollinations-)?([A-Za-z0-9_-]{32})(?:\.png)?\/?$/u
-    ];
-    let match = null;
-    for (const pattern of patterns) { match = pattern.exec(pathname); if (match) break; }
+    const match = /^\/api\/(?:public\/)?emoji\/(?:image\/)?(?:pollinations-)?([A-Za-z0-9_-]{32})(?:\.png)?\/?$/u.exec(pathname);
     if (!match) return false;
     prune();
     const item = images.get(match[1]);
@@ -164,13 +156,7 @@ export function createPollinationsFallback({ publicBaseUrl, apiKey = process.env
       return true;
     }
     process.stdout.write(`[emoji-relay] image_status=200 method=${req.method}\n`);
-    res.writeHead(200, {
-      'Content-Type': 'image/png',
-      'Content-Length': String(item.png.length),
-      'Cache-Control': 'private, max-age=3600, immutable',
-      'X-Content-Type-Options': 'nosniff',
-      'Strict-Transport-Security': 'max-age=31536000'
-    });
+    res.writeHead(200, { 'Content-Type': 'image/png', 'Content-Length': String(item.png.length), 'Cache-Control': 'private, max-age=3600, immutable', 'X-Content-Type-Options': 'nosniff', 'Strict-Transport-Security': 'max-age=31536000' });
     if (req.method === 'HEAD') res.end(); else res.end(item.png);
     return true;
   }
