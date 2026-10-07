@@ -1,6 +1,6 @@
 import { randomBytes, timingSafeEqual } from 'node:crypto';
 import { mkdirSync, existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
 import sharp from 'sharp';
 
 const MAX_BODY = 16 * 1024 * 1024;
@@ -24,15 +24,27 @@ function cors(res) {
   res.setHeader('Access-Control-Max-Age', '600');
 }
 
-function safeBearer(req, secret) {
-  if (!secret) return false;
+function bearer(req) {
   const prefix = 'Bearer ';
   const header = req.headers.authorization ?? '';
-  if (!header.startsWith(prefix)) return false;
-  const candidate = header.slice(prefix.length);
+  return header.startsWith(prefix) ? header.slice(prefix.length) : '';
+}
+
+function safeStaticBearer(req, secret) {
+  if (!secret) return false;
+  const candidate = bearer(req);
+  if (!candidate) return false;
   const a = Buffer.from(candidate);
   const b = Buffer.from(secret);
   return a.length === b.length && timingSafeEqual(a, b);
+}
+
+function authorizedImport(req, secret, state) {
+  if (safeStaticBearer(req, secret)) return true;
+  const token = bearer(req);
+  if (!/^[A-Za-z0-9_-]{43}$/u.test(token)) return false;
+  const now = Math.floor(Date.now() / 1000);
+  return !!state?.verify(token, now);
 }
 
 async function readJson(req) {
@@ -61,7 +73,7 @@ export function createImportedEmojiLibrary({ publicBaseUrl, storageDir, importSe
 
   async function importEmoji(req, res) {
     cors(res);
-    if (!safeBearer(req, importSecret)) return json(res, 401, { success: false, code: 'IMPORT_AUTH_REQUIRED', error: 'Valid import authorization is required.' });
+    if (!authorizedImport(req, importSecret, state)) return json(res, 401, { success: false, code: 'IMPORT_AUTH_REQUIRED', error: 'Valid import authorization is required.' });
     try {
       const body = await readJson(req);
       const prompt = typeof body?.prompt === 'string' ? body.prompt.trim() : '';
@@ -102,9 +114,9 @@ export function createImportedEmojiLibrary({ publicBaseUrl, storageDir, importSe
   }
 
   function listEmojis(req, res) {
-    const match = /^Bearer ([A-Za-z0-9_-]{43})$/u.exec(req.headers.authorization ?? '');
+    const token = bearer(req);
     const now = Math.floor(Date.now() / 1000);
-    if (!match || !state?.verify(match[1], now)) return json(res, 401, { success: false, code: 'SESSION_REQUIRED', error: 'Obtain a new short-lived session.' });
+    if (!/^[A-Za-z0-9_-]{43}$/u.test(token) || !state?.verify(token, now)) return json(res, 401, { success: false, code: 'SESSION_REQUIRED', error: 'Obtain a new short-lived session.' });
     return json(res, 200, { success: true, emojis: items });
   }
 
