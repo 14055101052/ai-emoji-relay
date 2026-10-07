@@ -1,11 +1,12 @@
 import dns from 'node:dns';
 import { isIP } from 'node:net';
 
-// Credential destinations stay within the existing project, including its dev host.
+// Credential destinations stay within the existing project, including its dev and published production hosts.
 // These are an allowlist, not a default endpoint; the environment must select one.
 const projectHosts = new Set([
   'project--a55e5977-6867-4325-9a5e-5e9efbb3a82c.lovable.app',
   'project--a55e5977-6867-4325-9a5e-5e9efbb3a82c-dev.lovable.app',
+  'emoji-craft-ai.lovable.app',
 ]);
 
 export function validateUpstreamUrl(value) {
