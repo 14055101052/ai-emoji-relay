@@ -62,6 +62,13 @@ export class RelayState {
   close() { this.db.close(); }
 }
 
+function allowBrowserCors(res) {
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+  res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
+  res.setHeader('Access-Control-Max-Age', '600');
+}
+
 function reply(res, status, body, retryAfter) {
   if (res.destroyed) return;
   res.setHeader('Content-Type', 'application/json; charset=utf-8');
@@ -136,6 +143,10 @@ export function createRelay({ apiKey = '', generateUrl, state = new RelayState()
   return async function handle(req, res) {
     let timeout; let charged = false; let abort; let disconnect;
     try {
+      if (req.url === '/api/auth/session') {
+        allowBrowserCors(res);
+        if (req.method === 'OPTIONS') { res.writeHead(204); res.end(); return; }
+      }
       if (tlsTermination === 'render' && req.url === '/healthz' && req.method === 'GET') { reply(res, apiKey ? 200 : 503, { ready: !!apiKey }); return; }
       const ip = clientIP(req, config);
       if (req.url === '/healthz' && req.method === 'GET') { reply(res, apiKey ? 200 : 503, { ready: !!apiKey }); return; }
@@ -160,7 +171,6 @@ export function createRelay({ apiKey = '', generateUrl, state = new RelayState()
       abort = new AbortController(); timeout = setTimeout(() => abort.abort(), timeoutMs);
       disconnect = () => { if (!res.writableEnded) abort.abort(); }; res.once('close', disconnect);
       const upstream = await fetchImpl(upstreamUrl, { method: 'POST', redirect: 'error', signal: abort.signal, headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${apiKey}`, 'User-Agent': 'AIEmojiKeyboard-Relay/1.0' }, body: JSON.stringify(input) });
-      // Safe diagnostics only: status/category, never key, token, prompt, URL, or payload.
       process.stdout.write(`[emoji-relay] upstream_status=${upstream.status}\n`);
       if (upstream.status !== 200) {
         await upstream.body?.cancel().catch(() => {});
