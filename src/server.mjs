@@ -4,17 +4,16 @@ import { readFileSync } from 'node:fs';
 import { RelayState, createRelay } from './relay.mjs';
 import { runtimeConfig } from './runtime-config.mjs';
 import { validateUpstreamDns } from './upstream-url.mjs';
-import { createCloudflareFallback } from './cloudflare-fallback.mjs';
+import { createAIHordeFallback } from './aihorde-fallback.mjs';
 
 try {
   process.umask(0o077);
   const config = runtimeConfig();
   await validateUpstreamDns(config.generateUrl);
   const state = new RelayState(config.dbPath);
-  const fallback = createCloudflareFallback({
-    accountId: process.env.CLOUDFLARE_ACCOUNT_ID ?? '',
-    token: process.env.CLOUDFLARE_API_TOKEN ?? '',
-    publicBaseUrl: process.env.PUBLIC_BASE_URL ?? 'https://ai-emoji-relay.onrender.com'
+  const fallback = createAIHordeFallback({
+    publicBaseUrl: process.env.PUBLIC_BASE_URL ?? 'https://ai-emoji-relay.onrender.com',
+    apiKey: process.env.AIHORDE_API_KEY ?? '0000000000'
   });
   const relayHandler = createRelay({
     apiKey: process.env.EMOJI_API_KEY ?? '',
@@ -40,7 +39,7 @@ try {
     if (config.ephemeral) process.stdout.write('DEVELOPMENT ONLY: ephemeral SQLite loses sessions and quota budgets on filesystem reset; unsuitable for production.\n');
     if (config.mode === 'render') process.stdout.write('Render ingress mode: all clients share the conservative IP quota bucket; forwarded client-IP headers are ignored.\n');
     if (!process.env.EMOJI_API_KEY) process.stdout.write('Backend credential missing; session issuance and generation are disabled (503).\n');
-    process.stdout.write(fallback ? 'Cloudflare FLUX fallback enabled with transparent PNG post-processing.\n' : 'Cloudflare FLUX fallback disabled until server-side Cloudflare credentials are configured.\n');
+    process.stdout.write(fallback ? 'AI Horde fallback enabled with transparent PNG post-processing.\n' : 'AI Horde fallback unavailable because PUBLIC_BASE_URL is invalid.\n');
   });
   function stop() { server.close(() => { state.close(); process.exit(0); }); setTimeout(() => process.exit(1), 10000).unref(); }
   process.on('SIGTERM', stop); process.on('SIGINT', stop);
