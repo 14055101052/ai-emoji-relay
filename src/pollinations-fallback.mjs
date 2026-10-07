@@ -7,7 +7,7 @@ const PROVIDER_TIMEOUT_MS = 35000;
 const PUBLIC_IMAGE_BASE = 'https://image.pollinations.ai/prompt/';
 
 function enhancePrompt(prompt) {
-  return `premium mobile emoji sticker of ${prompt}, soft 3D render, cute rounded proportions, polished materials, expressive details, centered single subject, full subject visible, clean silhouette, studio lighting, pure white background, no scenery, no text, no border, no frame, no watermark`;
+  return `Create exactly ONE isolated premium emoji sticker of: ${prompt}. Soft 3D app-icon style, cute rounded proportions, polished materials, clean simplified shapes, centered, full subject visible, front or three-quarter view, crisp silhouette, studio product render, plain pure white seamless background only. The subject itself must be the requested thing, not a toy, figurine, photo, mockup, hand-held object, product shot, scene, room, table, pedestal, stand, card, package, frame, or screenshot. No people, no hands, no fingers, no props, no environment, no text, no labels, no logo, no watermark, no border, no extra objects.`;
 }
 
 function backgroundReference(data, width, height) {
@@ -88,12 +88,13 @@ export function createPollinationsFallback({ publicBaseUrl, apiKey = process.env
       const prompt = encodeURIComponent(enhancePrompt(input.prompt));
       const url = new URL(`${PUBLIC_IMAGE_BASE}${prompt}`);
       url.searchParams.set('model', 'flux');
-      url.searchParams.set('width', '768');
-      url.searchParams.set('height', '768');
+      url.searchParams.set('width', '1024');
+      url.searchParams.set('height', '1024');
       url.searchParams.set('nologo', 'true');
       url.searchParams.set('enhance', 'false');
       url.searchParams.set('safe', 'true');
       url.searchParams.set('private', 'true');
+      url.searchParams.set('negative_prompt', 'human, person, hand, hands, fingers, holding, toy, figurine, sculpture, miniature, photo, photograph, realistic scene, room, table, pedestal, stand, prop, package, card, frame, screenshot, text, letters, words, logo, watermark, border, background objects, multiple subjects, extra objects');
       const headers = { 'User-Agent': 'AIEmojiKeyboard-Relay/1.0' };
       if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
       const response = await fetchImpl(url, { method: 'GET', headers, redirect: 'follow', signal: controller.signal });
@@ -145,26 +146,21 @@ export function createPollinationsFallback({ publicBaseUrl, apiKey = process.env
     if (!['GET', 'HEAD'].includes(req.method ?? '')) return false;
     let pathname;
     try { pathname = new URL(req.url ?? '/', 'https://relay.invalid').pathname; } catch { return false; }
-    prune();
-
-    const strict = /^\/api\/(?:public\/)?emoji\/(?:image\/)?(?:pollinations-)?([A-Za-z0-9_-]{32})(?:\.png)?\/?$/u.exec(pathname);
-    let id = strict?.[1] ?? null;
-
-    if (!id) {
-      const candidates = pathname.match(/[A-Za-z0-9_-]{32}/gu) ?? [];
-      id = candidates.find(candidate => images.has(candidate)) ?? null;
-      if (id) process.stdout.write('[emoji-relay] image_route_compat=matched_cached_id\n');
-    }
-
-    if (!id) {
-      if (pathname.startsWith('/api/')) {
-        const safePath = pathname.replace(/[^A-Za-z0-9_./-]/gu, '_').slice(0, 180);
-        process.stdout.write(`[emoji-relay] image_route_miss method=${req.method} path=${safePath}\n`);
+    const direct = /^\/api\/(?:public\/)?emoji\/(?:image\/)?(?:pollinations-)?([A-Za-z0-9_-]{32})(?:\.png)?\/?$/u.exec(pathname);
+    let key = direct?.[1] ?? null;
+    if (!key) {
+      const parts = pathname.split('/').filter(Boolean);
+      for (const part of parts) {
+        const clean = part.replace(/^pollinations-/u, '').replace(/\.png$/u, '');
+        if (/^[A-Za-z0-9_-]{32}$/u.test(clean) && images.has(clean)) { key = clean; break; }
       }
+    }
+    if (!key) {
+      if (pathname.includes('emoji') || pathname.includes('image')) process.stdout.write(`[emoji-relay] image_route_unmatched path=${pathname.replace(/[^A-Za-z0-9_./-]/gu, '_').slice(0, 180)}\n`);
       return false;
     }
-
-    const item = images.get(id);
+    prune();
+    const item = images.get(key);
     if (!item) {
       process.stdout.write('[emoji-relay] image_cache_miss\n');
       res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
