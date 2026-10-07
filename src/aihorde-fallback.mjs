@@ -122,15 +122,7 @@ export function createAIHordeFallback({ publicBaseUrl, apiKey = process.env.AIHO
       },
       body: JSON.stringify({
         prompt: enhancePrompt(input.prompt),
-        params: {
-          n: 1,
-          width: 1024,
-          height: 1024,
-          steps: 8,
-          cfg_scale: 2,
-          sampler_name: 'k_dpmpp_sde',
-          karras: true
-        },
+        params: { n: 1, width: 1024, height: 1024, steps: 8, cfg_scale: 2, sampler_name: 'k_dpmpp_sde', karras: true },
         nsfw: false,
         censor_nsfw: true,
         shared: false,
@@ -179,10 +171,7 @@ export function createAIHordeFallback({ publicBaseUrl, apiKey = process.env.AIHO
       const fallback = await generate(input, init.signal);
       await primary.body?.cancel().catch(() => {});
       process.stdout.write('[emoji-relay] horde_status=200\n');
-      return new Response(JSON.stringify(fallback), {
-        status: 200,
-        headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }
-      });
+      return new Response(JSON.stringify(fallback), { status: 200, headers: { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' } });
     } catch (error) {
       const safe = String(error?.message ?? 'unknown').replace(/[^A-Za-z0-9_-]/gu, '_').slice(0, 80);
       process.stdout.write(`[emoji-relay] horde_error=${safe}\n`);
@@ -194,9 +183,14 @@ export function createAIHordeFallback({ publicBaseUrl, apiKey = process.env.AIHO
     if (!['GET', 'HEAD'].includes(req.method ?? '')) return false;
     let pathname;
     try { pathname = new URL(req.url ?? '/', 'https://relay.invalid').pathname; } catch { return false; }
-    if (!pathname.startsWith('/api/emoji/image/')) return false;
-    const match = /^\/api\/emoji\/image\/(?:horde-)?([A-Za-z0-9_-]{32})(?:\.png)?\/?$/u.exec(pathname);
-    if (!match) return false;
+    if (!pathname.includes('/emoji/')) return false;
+
+    const match = /^\/api\/(?:public\/)?emoji\/(?:image\/)?(?:horde-)?([A-Za-z0-9_-]{32})(?:\.png)?\/?$/u.exec(pathname);
+    if (!match) {
+      if (pathname.startsWith('/api/')) process.stdout.write(`[emoji-relay] image_route_miss method=${req.method} path_len=${pathname.length}\n`);
+      return false;
+    }
+
     prune();
     const item = images.get(match[1]);
     if (!item) {
