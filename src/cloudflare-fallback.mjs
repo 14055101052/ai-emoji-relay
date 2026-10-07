@@ -1,9 +1,12 @@
 import { randomBytes } from 'node:crypto';
 import sharp from 'sharp';
 
+// Klein 4B is dramatically cheaper than 9B on Workers AI while preserving strong
+// emoji quality. Keep 9B only as a model-specific 5xx rescue path; never burn it
+// when the account-wide quota itself is exhausted (429).
 const MODELS = [
-  '@cf/black-forest-labs/flux-2-klein-9b',
-  '@cf/black-forest-labs/flux-2-klein-4b'
+  '@cf/black-forest-labs/flux-2-klein-4b',
+  '@cf/black-forest-labs/flux-2-klein-9b'
 ];
 const IMAGE_TTL_SECONDS = 3600;
 const MAX_GENERATED_BYTES = 12 * 1024 * 1024;
@@ -117,6 +120,8 @@ export function createCloudflareFallback({ accountId, token, publicBaseUrl, fetc
       } catch (error) {
         lastError = error;
         const message = String(error?.message ?? '');
+        // Only move to the expensive rescue model for provider/model 5xx failures.
+        // A 429 is account-wide quota/rate limiting and retrying another model wastes time.
         if (!/^CLOUDFLARE_5\d\d/u.test(message)) throw error;
       }
     }
@@ -159,39 +164,54 @@ export function createCloudflareFallback({ accountId, token, publicBaseUrl, fetc
     }
   }
 
-  function serveImage(req, res) {
-    if (!['GET', 'HEAD'].includes(req.method ?? '')) return false;
-    let pathname;
-    try { pathname = new URL(req.url ?? '/', 'https://relay.invalid').pathname; } catch { return false; }
-    if (!pathname.startsWith('/api/emoji/image/')) return false;
-
-    const match = /^\/api\/emoji\/image\/(?:cf-)?([A-Za-z0-9_-]{32})(?:\.png)?\/?$/u.exec(pathname);
-    if (!match) {
-      const tail = pathname.slice('/api/emoji/image/'.length);
-      process.stdout.write(`[emoji-relay] image_route_miss method=${req.method} segment_length=${tail.length} has_cf_prefix=${tail.startsWith('cf-')} has_png_suffix=${tail.endsWith('.png')}\n`);
-      return false;
-    }
-
-    prune();
-    const item = images.get(match[1]);
-    if (!item) {
-      process.stdout.write('[emoji-relay] image_cache_miss\n');
-      res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
-      if (req.method === 'HEAD') res.end();
-      else res.end(JSON.stringify({ success: false, code: 'IMAGE_EXPIRED', error: 'This generated image has expired.' }));
-      return true;
-    }
-
-    process.stdout.write(`[emoji-relay] image_status=200 method=${req.method}\n`);
+  function sendImage(req, res, item) {
     res.writeHead(200, {
       'Content-Type': 'image/png',
       'Content-Length': String(item.png.length),
       'Cache-Control': 'private, max-age=3600, immutable',
       'X-Content-Type-Options': 'nosniff',
+      'Access-Control-Allow-Origin': '*',
       'Strict-Transport-Security': 'max-age=31536000'
     });
     if (req.method === 'HEAD') res.end();
     else res.end(item.png);
+  }
+
+  function serveImage(req, res) {
+    if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method ?? '')) return false;
+    let pathname;
+    try { pathname = new URL(req.url ?? '/', 'https://relay.invalid').pathname; } catch { return false; }
+
+    // Be deliberately tolerant here: mobile image libraries may normalize the path,
+    // strip the extension, preserve the cf- prefix, or append path segments. The
+    // random 192-bit token is the capability; serve only when that exact live token
+    // exists in our in-memory cache.
+    const candidates = pathname.match(/[A-Za-z0-9_-]{32}/gu) ?? [];
+    prune();
+    for (const id of candidates) {
+      const item = images.get(id);
+      if (!item) continue;
+      if (req.method === 'OPTIONS') {
+        res.writeHead(204, {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+          'Access-Control-Max-Age': '3600'
+        });
+        res.end();
+      } else {
+        process.stdout.write(`[emoji-relay] image_status=200 method=${req.method}\n`);
+        sendImage(req, res, item);
+      }
+      return true;
+    }
+
+    // Only claim our canonical image route. Unknown routes still fall through to the
+    // relay's normal 404 handling.
+    if (!pathname.startsWith('/api/emoji/image/')) return false;
+    process.stdout.write('[emoji-relay] image_cache_miss\n');
+    res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
+    if (req.method === 'HEAD') res.end();
+    else res.end(JSON.stringify({ success: false, code: 'IMAGE_EXPIRED', error: 'This generated image has expired.' }));
     return true;
   }
 
