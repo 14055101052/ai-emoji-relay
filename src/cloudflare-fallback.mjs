@@ -75,7 +75,6 @@ async function cloudflareRequest(fetchImpl, accountId, token, model, prompt, sig
   form.append('width', '1024');
   form.append('height', '1024');
 
-  // Serialize exactly as Cloudflare documents so the multipart boundary is explicit.
   const serialized = new Response(form);
   const contentType = serialized.headers.get('content-type');
   const body = await serialized.arrayBuffer();
@@ -161,14 +160,17 @@ export function createCloudflareFallback({ accountId, token, publicBaseUrl, fetc
   }
 
   function serveImage(req, res) {
-    if (req.method !== 'GET') return false;
-    const match = /^\/api\/emoji\/image\/([A-Za-z0-9_-]{32})$/u.exec(req.url ?? '');
+    if (!['GET', 'HEAD'].includes(req.method ?? '')) return false;
+    let pathname;
+    try { pathname = new URL(req.url ?? '/', 'https://relay.invalid').pathname; } catch { return false; }
+    const match = /^\/api\/emoji\/image\/([A-Za-z0-9_-]{32})\/?$/u.exec(pathname);
     if (!match) return false;
     prune();
     const item = images.get(match[1]);
     if (!item) {
       res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
-      res.end(JSON.stringify({ success: false, code: 'IMAGE_EXPIRED', error: 'This generated image has expired.' }));
+      if (req.method === 'HEAD') res.end();
+      else res.end(JSON.stringify({ success: false, code: 'IMAGE_EXPIRED', error: 'This generated image has expired.' }));
       return true;
     }
     res.writeHead(200, {
@@ -178,7 +180,8 @@ export function createCloudflareFallback({ accountId, token, publicBaseUrl, fetc
       'X-Content-Type-Options': 'nosniff',
       'Strict-Transport-Security': 'max-age=31536000'
     });
-    res.end(item.png);
+    if (req.method === 'HEAD') res.end();
+    else res.end(item.png);
     return true;
   }
 
