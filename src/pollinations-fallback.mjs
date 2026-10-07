@@ -145,10 +145,26 @@ export function createPollinationsFallback({ publicBaseUrl, apiKey = process.env
     if (!['GET', 'HEAD'].includes(req.method ?? '')) return false;
     let pathname;
     try { pathname = new URL(req.url ?? '/', 'https://relay.invalid').pathname; } catch { return false; }
-    const match = /^\/api\/(?:public\/)?emoji\/(?:image\/)?(?:pollinations-)?([A-Za-z0-9_-]{32})(?:\.png)?\/?$/u.exec(pathname);
-    if (!match) return false;
     prune();
-    const item = images.get(match[1]);
+
+    const strict = /^\/api\/(?:public\/)?emoji\/(?:image\/)?(?:pollinations-)?([A-Za-z0-9_-]{32})(?:\.png)?\/?$/u.exec(pathname);
+    let id = strict?.[1] ?? null;
+
+    if (!id) {
+      const candidates = pathname.match(/[A-Za-z0-9_-]{32}/gu) ?? [];
+      id = candidates.find(candidate => images.has(candidate)) ?? null;
+      if (id) process.stdout.write('[emoji-relay] image_route_compat=matched_cached_id\n');
+    }
+
+    if (!id) {
+      if (pathname.startsWith('/api/')) {
+        const safePath = pathname.replace(/[^A-Za-z0-9_./-]/gu, '_').slice(0, 180);
+        process.stdout.write(`[emoji-relay] image_route_miss method=${req.method} path=${safePath}\n`);
+      }
+      return false;
+    }
+
+    const item = images.get(id);
     if (!item) {
       process.stdout.write('[emoji-relay] image_cache_miss\n');
       res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
