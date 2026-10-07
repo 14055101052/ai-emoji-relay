@@ -133,7 +133,7 @@ export function createCloudflareFallback({ accountId, token, publicBaseUrl, fetc
       success: true,
       id: `cf-${id}`,
       name: input.prompt.slice(0, 120),
-      imageUrl: `${base.origin}${base.pathname}/api/emoji/image/${id}`,
+      imageUrl: `${base.origin}${base.pathname}/api/emoji/image/${id}.png`,
       mimeType: 'image/png',
       expiresInSeconds: IMAGE_TTL_SECONDS
     };
@@ -163,16 +163,26 @@ export function createCloudflareFallback({ accountId, token, publicBaseUrl, fetc
     if (!['GET', 'HEAD'].includes(req.method ?? '')) return false;
     let pathname;
     try { pathname = new URL(req.url ?? '/', 'https://relay.invalid').pathname; } catch { return false; }
-    const match = /^\/api\/emoji\/image\/([A-Za-z0-9_-]{32})\/?$/u.exec(pathname);
-    if (!match) return false;
+    if (!pathname.startsWith('/api/emoji/image/')) return false;
+
+    const match = /^\/api\/emoji\/image\/(?:cf-)?([A-Za-z0-9_-]{32})(?:\.png)?\/?$/u.exec(pathname);
+    if (!match) {
+      const tail = pathname.slice('/api/emoji/image/'.length);
+      process.stdout.write(`[emoji-relay] image_route_miss method=${req.method} segment_length=${tail.length} has_cf_prefix=${tail.startsWith('cf-')} has_png_suffix=${tail.endsWith('.png')}\n`);
+      return false;
+    }
+
     prune();
     const item = images.get(match[1]);
     if (!item) {
+      process.stdout.write('[emoji-relay] image_cache_miss\n');
       res.writeHead(404, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store', 'X-Content-Type-Options': 'nosniff' });
       if (req.method === 'HEAD') res.end();
       else res.end(JSON.stringify({ success: false, code: 'IMAGE_EXPIRED', error: 'This generated image has expired.' }));
       return true;
     }
+
+    process.stdout.write(`[emoji-relay] image_status=200 method=${req.method}\n`);
     res.writeHead(200, {
       'Content-Type': 'image/png',
       'Content-Length': String(item.png.length),
