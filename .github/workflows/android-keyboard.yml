@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
@@ -31,65 +31,44 @@ jobs:
           tar -tzf work/android-app.tar.gz >/dev/null
           tar -xzf work/android-app.tar.gz -C work
           sed -i 's/Ui\.column(/Ui.col(/g' work/android-app/app/src/main/java/com/mehan/emojikeyboard/EmojiKeyboardService.java
-      - name: Patch inline emoji transport lab
+      - name: Patch WhatsApp MIME capability probe
         run: |
           python3 - <<'PY'
           from pathlib import Path
           p = Path('work/android-app/app/src/main/java/com/mehan/emojikeyboard/EmojiKeyboardService.java')
           s = p.read_text()
-          old = '      b.setOnClickListener(v -> insert(item));\n      grid.addView(b, new android.view.ViewGroup.LayoutParams(width, Ui.dp(this, 72)));'
-          new = '      b.setOnClickListener(v -> insert(item));\n      b.setOnLongClickListener(v -> insertInlineExperiment(item));\n      grid.addView(b, new android.view.ViewGroup.LayoutParams(width, Ui.dp(this, 72)));'
-          if old not in s:
-              raise SystemExit('Could not locate My Emojis click listener')
-          s = s.replace(old, new, 1)
-          marker = '\n  private void insert(EmojiStore.Item item) {'
+          target = '    List<EmojiStore.Item> items = store.list("");'
           lines = [
-              '  private boolean insertInlineExperiment(EmojiStore.Item item) {',
-              '    InputConnection c = getCurrentInputConnection();',
-              '    if (c == null) return false;',
-              '    try {',
-              '      android.graphics.drawable.Drawable drawable =',
-              '          android.graphics.drawable.Drawable.createFromPath(store.file(item.id).getPath());',
-              '      if (drawable == null) {',
-              '        Ui.toast(this, "Inline Lab: could not open emoji image.");',
-              '        return true;',
+              '    EditorInfo probeInfo = getCurrentInputEditorInfo();',
+              '    StringBuilder probe = new StringBuilder("Target: ");',
+              '    probe.append(probeInfo == null || probeInfo.packageName == null ? "unknown" : probeInfo.packageName);',
+              '    probe.append("\\nAccepts: ");',
+              '    if (probeInfo == null || probeInfo.contentMimeTypes == null || probeInfo.contentMimeTypes.length == 0) {',
+              '      probe.append("text only / no rich MIME types advertised");',
+              '    } else {',
+              '      for (int i = 0; i < probeInfo.contentMimeTypes.length; i++) {',
+              '        if (i > 0) probe.append(", ");',
+              '        probe.append(probeInfo.contentMimeTypes[i]);',
               '      }',
-              '      int size = Ui.dp(this, 30);',
-              '      drawable.setBounds(0, 0, size, size);',
-              '      android.text.SpannableString inline = new android.text.SpannableString("\\uFFFC");',
-              '      inline.setSpan(',
-              '          new android.text.style.ImageSpan(',
-              '              drawable, android.text.style.DynamicDrawableSpan.ALIGN_BASELINE),',
-              '          0,',
-              '          1,',
-              '          android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);',
-              '      boolean accepted = c.commitText(inline, 1);',
-              '      Ui.toast(',
-              '          this,',
-              '          accepted',
-              '              ? "Inline Lab sent. Check whether WhatsApp kept the custom glyph."',
-              '              : "Inline Lab rejected by this text field.");',
-              '    } catch (RuntimeException e) {',
-              '      Ui.toast(this, "Inline Lab blocked by this app.");',
               '    }',
-              '    return true;',
-              '  }',
-              ''
+              '    TextView probeView = Ui.text(this, probe.toString(), 12, Ui.MUTED);',
+              '    probeView.setPadding(Ui.dp(this, 8), Ui.dp(this, 4), Ui.dp(this, 8), Ui.dp(this, 4));',
+              '    body.addView(probeView);',
+              '    List<EmojiStore.Item> items = store.list("");'
           ]
-          experiment = '\n'.join(lines)
-          if marker not in s:
-              raise SystemExit('Could not locate insert method')
-          s = s.replace(marker, '\n' + experiment + marker, 1)
+          if target not in s:
+              raise SystemExit('Could not locate My Emojis list')
+          s = s.replace(target, '\n'.join(lines), 1)
           p.write_text(s)
           PY
-      - name: Verify inline experiment patch
+      - name: Verify capability probe
         run: |
-          grep -n -E 'setOnLongClickListener|insertInlineExperiment|SpannableString|ImageSpan|commitContent|contentMimeTypes' work/android-app/app/src/main/java/com/mehan/emojikeyboard/EmojiKeyboardService.java
+          grep -n -E 'Target:|Accepts:|contentMimeTypes|packageName|commitContent' work/android-app/app/src/main/java/com/mehan/emojikeyboard/EmojiKeyboardService.java
       - name: Build debug APK
         run: gradle -p work/android-app :app:assembleDebug --stacktrace
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: AI-Emoji-Keyboard-v1.3.0-inline-lab
+          name: AI-Emoji-Keyboard-v1.4.0-mime-probe
           path: work/android-app/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
