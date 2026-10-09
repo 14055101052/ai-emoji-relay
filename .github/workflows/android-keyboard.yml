@@ -31,7 +31,7 @@ jobs:
           tar -tzf work/android-app.tar.gz >/dev/null
           tar -xzf work/android-app.tar.gz -C work
           sed -i 's/Ui\.column(/Ui.col(/g' work/android-app/app/src/main/java/com/mehan/emojikeyboard/EmojiKeyboardService.java
-      - name: Patch WhatsApp advertised MIME experiment
+      - name: Patch forced WhatsApp MIME experiment
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -39,28 +39,17 @@ jobs:
           s = p.read_text()
 
           old = '      b.setOnClickListener(v -> insert(item));\n      grid.addView(b, new android.view.ViewGroup.LayoutParams(width, Ui.dp(this, 72)));'
-          new = '      b.setOnClickListener(v -> insert(item));\n      b.setOnLongClickListener(v -> insertWithAdvertisedMime(item, "image/webp.wa.sticker"));\n      grid.addView(b, new android.view.ViewGroup.LayoutParams(width, Ui.dp(this, 72)));'
+          new = '      b.setOnClickListener(v -> insert(item));\n      b.setOnLongClickListener(v -> forceMimeExperiment(item, "image/webp.wa.sticker"));\n      grid.addView(b, new android.view.ViewGroup.LayoutParams(width, Ui.dp(this, 72)));'
           if old not in s:
               raise SystemExit('Could not locate My Emojis click listener')
           s = s.replace(old, new, 1)
 
           marker = '\n  private void insert(EmojiStore.Item item) {'
           lines = [
-              '  private boolean insertWithAdvertisedMime(EmojiStore.Item item, String mime) {',
-              '    EditorInfo info = getCurrentInputEditorInfo();',
+              '  private boolean forceMimeExperiment(EmojiStore.Item item, String mime) {',
               '    InputConnection c = getCurrentInputConnection();',
-              '    if (info == null || c == null) return false;',
-              '    boolean advertised = false;',
-              '    if (info.contentMimeTypes != null) {',
-              '      for (String accepted : info.contentMimeTypes) {',
-              '        if (ClipDescription.compareMimeTypes(mime, accepted)) {',
-              '          advertised = true;',
-              '          break;',
-              '        }',
-              '      }',
-              '    }',
-              '    if (!advertised) {',
-              '      Ui.toast(this, "WhatsApp did not advertise " + mime);',
+              '    if (c == null) {',
+              '      Ui.toast(this, "No active WhatsApp input connection.");',
               '      return true;',
               '    }',
               '    try {',
@@ -68,9 +57,9 @@ jobs:
               '          item.uri(), new ClipDescription(item.label, new String[] {mime}), null);',
               '      boolean accepted = c.commitContent(',
               '          content, InputConnection.INPUT_CONTENT_GRANT_READ_URI_PERMISSION, null);',
-              '      Ui.toast(this, accepted ? "Sent using " + mime : "WhatsApp rejected " + mime);',
+              '      Ui.toast(this, accepted ? "WhatsApp accepted forced " + mime : "WhatsApp rejected forced " + mime);',
               '    } catch (RuntimeException e) {',
-              '      Ui.toast(this, "WhatsApp blocked " + mime);',
+              '      Ui.toast(this, "WhatsApp blocked forced " + mime);',
               '    }',
               '    return true;',
               '  }',
@@ -82,11 +71,7 @@ jobs:
 
           target = '    List<EmojiStore.Item> items = store.list("");'
           probe = [
-              '    EditorInfo probeInfo = getCurrentInputEditorInfo();',
-              '    StringBuilder probeText = new StringBuilder("Target: ");',
-              '    probeText.append(probeInfo == null || probeInfo.packageName == null ? "unknown" : probeInfo.packageName);',
-              '    probeText.append("\\nLong-press emoji = image/webp.wa.sticker test");',
-              '    TextView probeView = Ui.text(this, probeText.toString(), 12, Ui.MUTED);',
+              '    TextView probeView = Ui.text(this, "Long-press = force WhatsApp sticker MIME (ignores transient advertised-list changes)", 12, Ui.MUTED);',
               '    probeView.setPadding(Ui.dp(this, 8), Ui.dp(this, 4), Ui.dp(this, 8), Ui.dp(this, 4));',
               '    body.addView(probeView);',
               '    List<EmojiStore.Item> items = store.list("");'
@@ -96,14 +81,14 @@ jobs:
           s = s.replace(target, '\n'.join(probe), 1)
           p.write_text(s)
           PY
-      - name: Verify MIME experiment patch
+      - name: Verify forced MIME experiment patch
         run: |
-          grep -n -E 'setOnLongClickListener|insertWithAdvertisedMime|webp.wa.sticker|commitContent' work/android-app/app/src/main/java/com/mehan/emojikeyboard/EmojiKeyboardService.java
+          grep -n -E 'setOnLongClickListener|forceMimeExperiment|webp.wa.sticker|commitContent' work/android-app/app/src/main/java/com/mehan/emojikeyboard/EmojiKeyboardService.java
       - name: Build debug APK
         run: gradle -p work/android-app :app:assembleDebug --stacktrace
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: AI-Emoji-Keyboard-v1.5.0-whatsapp-mime-lab
+          name: AI-Emoji-Keyboard-v1.5.1-force-mime
           path: work/android-app/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
