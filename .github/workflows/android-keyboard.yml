@@ -31,10 +31,12 @@ jobs:
           tar -tzf work/android-app.tar.gz >/dev/null
           tar -xzf work/android-app.tar.gz -C work
           sed -i 's/Ui\.column(/Ui.col(/g' work/android-app/app/src/main/java/com/mehan/emojikeyboard/EmojiKeyboardService.java
-      - name: Inspect IME send path
+      - name: Inspect custom emoji send path
         run: |
-          echo '===== EmojiKeyboardService.java ====='
-          sed -n '1,360p' work/android-app/app/src/main/java/com/mehan/emojikeyboard/EmojiKeyboardService.java
+          echo '===== custom emoji send methods ====='
+          grep -n -E 'mine\(|send|commitContent|InputContent|contentMime|FileProvider|ClipData|ACTION_SEND|image/' work/android-app/app/src/main/java/com/mehan/emojikeyboard/EmojiKeyboardService.java || true
+          echo '===== remaining EmojiKeyboardService.java ====='
+          sed -n '330,760p' work/android-app/app/src/main/java/com/mehan/emojikeyboard/EmojiKeyboardService.java
       - name: Build debug APK
         run: gradle -p work/android-app :app:assembleDebug --stacktrace
       - name: Upload APK
