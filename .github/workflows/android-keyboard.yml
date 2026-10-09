@@ -31,17 +31,63 @@ jobs:
           tar -tzf work/android-app.tar.gz >/dev/null
           tar -xzf work/android-app.tar.gz -C work
           sed -i 's/Ui\.column(/Ui.col(/g' work/android-app/app/src/main/java/com/mehan/emojikeyboard/EmojiKeyboardService.java
-      - name: Inspect custom emoji send path
+      - name: Patch inline emoji transport lab
         run: |
-          echo '===== custom emoji send methods ====='
-          grep -n -E 'mine\(|send|commitContent|InputContent|contentMime|FileProvider|ClipData|ACTION_SEND|image/' work/android-app/app/src/main/java/com/mehan/emojikeyboard/EmojiKeyboardService.java || true
-          echo '===== remaining EmojiKeyboardService.java ====='
-          sed -n '330,760p' work/android-app/app/src/main/java/com/mehan/emojikeyboard/EmojiKeyboardService.java
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('work/android-app/app/src/main/java/com/mehan/emojikeyboard/EmojiKeyboardService.java')
+          s = p.read_text()
+          old = '      b.setOnClickListener(v -> insert(item));\n      grid.addView(b, new android.view.ViewGroup.LayoutParams(width, Ui.dp(this, 72)));'
+          new = '      b.setOnClickListener(v -> insert(item));\n      b.setOnLongClickListener(v -> insertInlineExperiment(item));\n      grid.addView(b, new android.view.ViewGroup.LayoutParams(width, Ui.dp(this, 72)));'
+          if old not in s:
+              raise SystemExit('Could not locate My Emojis click listener')
+          s = s.replace(old, new, 1)
+          marker = '\n  private void insert(EmojiStore.Item item) {'
+          experiment = r'''
+  private boolean insertInlineExperiment(EmojiStore.Item item) {
+    InputConnection c = getCurrentInputConnection();
+    if (c == null) return false;
+    try {
+      android.graphics.drawable.Drawable drawable =
+          android.graphics.drawable.Drawable.createFromPath(store.file(item.id).getPath());
+      if (drawable == null) {
+        Ui.toast(this, "Inline Lab: could not open emoji image.");
+        return true;
+      }
+      int size = Ui.dp(this, 30);
+      drawable.setBounds(0, 0, size, size);
+      android.text.SpannableString inline = new android.text.SpannableString("\uFFFC");
+      inline.setSpan(
+          new android.text.style.ImageSpan(
+              drawable, android.text.style.DynamicDrawableSpan.ALIGN_BASELINE),
+          0,
+          1,
+          android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+      boolean accepted = c.commitText(inline, 1);
+      Ui.toast(
+          this,
+          accepted
+              ? "Inline Lab sent. Check whether WhatsApp kept the custom glyph."
+              : "Inline Lab rejected by this text field.");
+    } catch (RuntimeException e) {
+      Ui.toast(this, "Inline Lab blocked by this app.");
+    }
+    return true;
+  }
+'''
+          if marker not in s:
+              raise SystemExit('Could not locate insert method')
+          s = s.replace(marker, '\n' + experiment + marker, 1)
+          p.write_text(s)
+          PY
+      - name: Verify inline experiment patch
+        run: |
+          grep -n -E 'setOnLongClickListener|insertInlineExperiment|SpannableString|ImageSpan|commitContent|contentMimeTypes' work/android-app/app/src/main/java/com/mehan/emojikeyboard/EmojiKeyboardService.java
       - name: Build debug APK
         run: gradle -p work/android-app :app:assembleDebug --stacktrace
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: AI-Emoji-Keyboard-v1.2.0-debug
+          name: AI-Emoji-Keyboard-v1.3.0-inline-lab
           path: work/android-app/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
