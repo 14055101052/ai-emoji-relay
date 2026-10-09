@@ -43,38 +43,40 @@ jobs:
               raise SystemExit('Could not locate My Emojis click listener')
           s = s.replace(old, new, 1)
           marker = '\n  private void insert(EmojiStore.Item item) {'
-          experiment = r'''
-  private boolean insertInlineExperiment(EmojiStore.Item item) {
-    InputConnection c = getCurrentInputConnection();
-    if (c == null) return false;
-    try {
-      android.graphics.drawable.Drawable drawable =
-          android.graphics.drawable.Drawable.createFromPath(store.file(item.id).getPath());
-      if (drawable == null) {
-        Ui.toast(this, "Inline Lab: could not open emoji image.");
-        return true;
-      }
-      int size = Ui.dp(this, 30);
-      drawable.setBounds(0, 0, size, size);
-      android.text.SpannableString inline = new android.text.SpannableString("\uFFFC");
-      inline.setSpan(
-          new android.text.style.ImageSpan(
-              drawable, android.text.style.DynamicDrawableSpan.ALIGN_BASELINE),
-          0,
-          1,
-          android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-      boolean accepted = c.commitText(inline, 1);
-      Ui.toast(
-          this,
-          accepted
-              ? "Inline Lab sent. Check whether WhatsApp kept the custom glyph."
-              : "Inline Lab rejected by this text field.");
-    } catch (RuntimeException e) {
-      Ui.toast(this, "Inline Lab blocked by this app.");
-    }
-    return true;
-  }
-'''
+          lines = [
+              '  private boolean insertInlineExperiment(EmojiStore.Item item) {',
+              '    InputConnection c = getCurrentInputConnection();',
+              '    if (c == null) return false;',
+              '    try {',
+              '      android.graphics.drawable.Drawable drawable =',
+              '          android.graphics.drawable.Drawable.createFromPath(store.file(item.id).getPath());',
+              '      if (drawable == null) {',
+              '        Ui.toast(this, "Inline Lab: could not open emoji image.");',
+              '        return true;',
+              '      }',
+              '      int size = Ui.dp(this, 30);',
+              '      drawable.setBounds(0, 0, size, size);',
+              '      android.text.SpannableString inline = new android.text.SpannableString("\\uFFFC");',
+              '      inline.setSpan(',
+              '          new android.text.style.ImageSpan(',
+              '              drawable, android.text.style.DynamicDrawableSpan.ALIGN_BASELINE),',
+              '          0,',
+              '          1,',
+              '          android.text.Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);',
+              '      boolean accepted = c.commitText(inline, 1);',
+              '      Ui.toast(',
+              '          this,',
+              '          accepted',
+              '              ? "Inline Lab sent. Check whether WhatsApp kept the custom glyph."',
+              '              : "Inline Lab rejected by this text field.");',
+              '    } catch (RuntimeException e) {',
+              '      Ui.toast(this, "Inline Lab blocked by this app.");',
+              '    }',
+              '    return true;',
+              '  }',
+              ''
+          ]
+          experiment = '\n'.join(lines)
           if marker not in s:
               raise SystemExit('Could not locate insert method')
           s = s.replace(marker, '\n' + experiment + marker, 1)
