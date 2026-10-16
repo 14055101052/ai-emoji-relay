@@ -31,148 +31,34 @@ jobs:
           tar -xzf work/android-app.tar.gz -C work
           sed -i 's/Ui\.column(/Ui.col(/g' work/android-app/app/src/main/java/com/mehan/emojikeyboard/EmojiKeyboardService.java
       - name: Patch Instagram GIF-only mode
+        env:
+          PROVIDER_B64: cGFja2FnZSBjb20ubWVoYW4uZW1vamlrZXlib2FyZDsKCmltcG9ydCBhbmRyb2lkLmNvbnRlbnQuQ29udGVudFByb3ZpZGVyOwppbXBvcnQgYW5kcm9pZC5jb250ZW50LkNvbnRlbnRWYWx1ZXM7CmltcG9ydCBhbmRyb2lkLmRhdGFiYXNlLkN1cnNvcjsKaW1wb3J0IGFuZHJvaWQubmV0LlVyaTsKaW1wb3J0IGFuZHJvaWQub3MuUGFyY2VsRmlsZURlc2NyaXB0b3I7CmltcG9ydCBqYXZhLmlvLkZpbGU7CmltcG9ydCBqYXZhLmlvLkZpbGVOb3RGb3VuZEV4Y2VwdGlvbjsKCnB1YmxpYyBmaW5hbCBjbGFzcyBFbW9qaVByb3ZpZGVyIGV4dGVuZHMgQ29udGVudFByb3ZpZGVyIHsKICBAT3ZlcnJpZGUgcHVibGljIGJvb2xlYW4gb25DcmVhdGUoKSB7IHJldHVybiB0cnVlOyB9CgogIHByaXZhdGUgRmlsZSByZXNvbHZlKFVyaSB1cmkpIHRocm93cyBGaWxlTm90Rm91bmRFeGNlcHRpb24gewogICAgU3RyaW5nIG5hbWUgPSB1cmkuZ2V0TGFzdFBhdGhTZWdtZW50KCk7CiAgICBpZiAobmFtZSA9PSBudWxsIHx8ICFuYW1lLm1hdGNoZXMoIig/OltBLVphLXowLTlfLV17MzJ9fFthLWYwLTktXXszNn0pXFwuKD86cG5nfGdpZikiKSkgewogICAgICB0aHJvdyBuZXcgRmlsZU5vdEZvdW5kRXhjZXB0aW9uKCJJbnZhbGlkIGVtb2ppIHBhdGgiKTsKICAgIH0KICAgIEZpbGUgZmlsZSA9IG5ldyBGaWxlKEVtb2ppU3RvcmUuZGlyZWN0b3J5KGdldENvbnRleHQoKSksIG5hbWUpOwogICAgaWYgKCFmaWxlLmV4aXN0cygpIHx8ICFmaWxlLmlzRmlsZSgpKSB0aHJvdyBuZXcgRmlsZU5vdEZvdW5kRXhjZXB0aW9uKCJFbW9qaSBub3QgZm91bmQiKTsKICAgIHJldHVybiBmaWxlOwogIH0KCiAgQE92ZXJyaWRlIHB1YmxpYyBTdHJpbmcgZ2V0VHlwZShVcmkgdXJpKSB7CiAgICBTdHJpbmcgbmFtZSA9IHVyaS5nZXRMYXN0UGF0aFNlZ21lbnQoKTsKICAgIHJldHVybiBuYW1lICE9IG51bGwgJiYgbmFtZS5lbmRzV2l0aCgiLmdpZiIpID8gImltYWdlL2dpZiIgOiAiaW1hZ2UvcG5nIjsKICB9CgogIEBPdmVycmlkZSBwdWJsaWMgUGFyY2VsRmlsZURlc2NyaXB0b3Igb3BlbkZpbGUoVXJpIHVyaSwgU3RyaW5nIG1vZGUpIHRocm93cyBGaWxlTm90Rm91bmRFeGNlcHRpb24gewogICAgaWYgKCEiciIuZXF1YWxzKG1vZGUpKSB0aHJvdyBuZXcgRmlsZU5vdEZvdW5kRXhjZXB0aW9uKCJSZWFkIG9ubHkiKTsKICAgIHJldHVybiBQYXJjZWxGaWxlRGVzY3JpcHRvci5vcGVuKHJlc29sdmUodXJpKSwgUGFyY2VsRmlsZURlc2NyaXB0b3IuTU9ERV9SRUFEX09OTFkpOwogIH0KCiAgQE92ZXJyaWRlIHB1YmxpYyBDdXJzb3IgcXVlcnkoVXJpIHVyaSwgU3RyaW5nW10gcHJvamVjdGlvbiwgU3RyaW5nIHNlbGVjdGlvbiwgU3RyaW5nW10gc2VsZWN0aW9uQXJncywgU3RyaW5nIHNvcnRPcmRlcikgeyByZXR1cm4gbnVsbDsgfQogIEBPdmVycmlkZSBwdWJsaWMgVXJpIGluc2VydChVcmkgdXJpLCBDb250ZW50VmFsdWVzIHZhbHVlcykgeyB0aHJvdyBuZXcgVW5zdXBwb3J0ZWRPcGVyYXRpb25FeGNlcHRpb24oKTsgfQogIEBPdmVycmlkZSBwdWJsaWMgaW50IGRlbGV0ZShVcmkgdXJpLCBTdHJpbmcgc2VsZWN0aW9uLCBTdHJpbmdbXSBzZWxlY3Rpb25BcmdzKSB7IHRocm93IG5ldyBVbnN1cHBvcnRlZE9wZXJhdGlvbkV4Y2VwdGlvbigpOyB9CiAgQE92ZXJyaWRlIHB1YmxpYyBpbnQgdXBkYXRlKFVyaSB1cmksIENvbnRlbnRWYWx1ZXMgdmFsdWVzLCBTdHJpbmcgc2VsZWN0aW9uLCBTdHJpbmdbXSBzZWxlY3Rpb25BcmdzKSB7IHRocm93IG5ldyBVbnN1cHBvcnRlZE9wZXJhdGlvbkV4Y2VwdGlvbigpOyB9Cn0K
+          METHODS_B64: CiAgcHJpdmF0ZSB2b2lkIGluc2VydEZvckN1cnJlbnRBcHAoRW1vamlTdG9yZS5JdGVtIGl0ZW0pIHsKICAgIEVkaXRvckluZm8gaW5mbyA9IGdldEN1cnJlbnRJbnB1dEVkaXRvckluZm8oKTsKICAgIFN0cmluZyBwa2cgPSBpbmZvID09IG51bGwgfHwgaW5mby5wYWNrYWdlTmFtZSA9PSBudWxsID8gIiIgOiBpbmZvLnBhY2thZ2VOYW1lOwogICAgaWYgKHBrZy5jb250YWlucygiaW5zdGFncmFtIikpIHsKICAgICAgaW5zZXJ0SW5zdGFncmFtR2lmKGl0ZW0pOwogICAgICByZXR1cm47CiAgICB9CiAgICBpbnNlcnQoaXRlbSk7CiAgfQoKICBwcml2YXRlIHZvaWQgaW5zZXJ0SW5zdGFncmFtR2lmKEVtb2ppU3RvcmUuSXRlbSBpdGVtKSB7CiAgICBVaS50b2FzdCh0aGlzLCAiUHJlcGFyaW5nIEdJRiBmb3IgSW5zdGFncmFt4oCmIik7CiAgICBuZXcgVGhyZWFkKCgpIC0+IHsKICAgICAgamF2YS5uZXQuSHR0cFVSTENvbm5lY3Rpb24gY29ubmVjdGlvbiA9IG51bGw7CiAgICAgIHRyeSB7CiAgICAgICAgU3RyaW5nIGdpZlVybCA9ICJodHRwczovL2FpLWVtb2ppLXJlbGF5Lm9ucmVuZGVyLmNvbS9hcGkvZW1vamkvbGlicmFyeS9naWYvIiArIGl0ZW0uaWQgKyAiLmdpZiI7CiAgICAgICAgY29ubmVjdGlvbiA9IChqYXZhLm5ldC5IdHRwVVJMQ29ubmVjdGlvbikgbmV3IGphdmEubmV0LlVSTChnaWZVcmwpLm9wZW5Db25uZWN0aW9uKCk7CiAgICAgICAgY29ubmVjdGlvbi5zZXRDb25uZWN0VGltZW91dCgxNTAwMCk7CiAgICAgICAgY29ubmVjdGlvbi5zZXRSZWFkVGltZW91dCgzMDAwMCk7CiAgICAgICAgY29ubmVjdGlvbi5zZXRSZXF1ZXN0UHJvcGVydHkoIkFjY2VwdCIsICJpbWFnZS9naWYiKTsKICAgICAgICBjb25uZWN0aW9uLmNvbm5lY3QoKTsKICAgICAgICBpZiAoY29ubmVjdGlvbi5nZXRSZXNwb25zZUNvZGUoKSAhPSAyMDApIHRocm93IG5ldyBqYXZhLmlvLklPRXhjZXB0aW9uKCJHSUYgSFRUUCAiICsgY29ubmVjdGlvbi5nZXRSZXNwb25zZUNvZGUoKSk7CiAgICAgICAgU3RyaW5nIHR5cGUgPSBjb25uZWN0aW9uLmdldENvbnRlbnRUeXBlKCk7CiAgICAgICAgaWYgKHR5cGUgPT0gbnVsbCB8fCAhdHlwZS50b0xvd2VyQ2FzZShqYXZhLnV0aWwuTG9jYWxlLlJPT1QpLnN0YXJ0c1dpdGgoImltYWdlL2dpZiIpKSB7CiAgICAgICAgICB0aHJvdyBuZXcgamF2YS5pby5JT0V4Y2VwdGlvbigiU2VydmVyIGRpZCBub3QgcmV0dXJuIEdJRiIpOwogICAgICAgIH0KICAgICAgICBqYXZhLmlvLkZpbGUgcG5nRmlsZSA9IHN0b3JlLmZpbGUoaXRlbS5pZCk7CiAgICAgICAgamF2YS5pby5GaWxlIGdpZkZpbGUgPSBuZXcgamF2YS5pby5GaWxlKHBuZ0ZpbGUuZ2V0UGFyZW50RmlsZSgpLCBpdGVtLmlkICsgIi5naWYiKTsKICAgICAgICB0cnkgKGphdmEuaW8uSW5wdXRTdHJlYW0gaW4gPSBuZXcgamF2YS5pby5CdWZmZXJlZElucHV0U3RyZWFtKGNvbm5lY3Rpb24uZ2V0SW5wdXRTdHJlYW0oKSk7CiAgICAgICAgICAgICBqYXZhLmlvLk91dHB1dFN0cmVhbSBvdXQgPSBuZXcgamF2YS5pby5CdWZmZXJlZE91dHB1dFN0cmVhbShuZXcgamF2YS5pby5GaWxlT3V0cHV0U3RyZWFtKGdpZkZpbGUpKSkgewogICAgICAgICAgYnl0ZVtdIGJ1ZmZlciA9IG5ldyBieXRlWzgxOTJdOwogICAgICAgICAgaW50IG47CiAgICAgICAgICB3aGlsZSAoKG4gPSBpbi5yZWFkKGJ1ZmZlcikpICE9IC0xKSBvdXQud3JpdGUoYnVmZmVyLCAwLCBuKTsKICAgICAgICB9CiAgICAgICAgaWYgKGdpZkZpbGUubGVuZ3RoKCkgPCA2KSB0aHJvdyBuZXcgamF2YS5pby5JT0V4Y2VwdGlvbigiRW1wdHkgR0lGIik7CiAgICAgICAgYW5kcm9pZC5uZXQuVXJpIGdpZlVyaSA9IGFuZHJvaWQubmV0LlVyaS5wYXJzZSgiY29udGVudDovLyIgKyBFbW9qaVN0b3JlLkFVVEhPUklUWSArICIvIiArIGl0ZW0uaWQgKyAiLmdpZiIpOwogICAgICAgIG5ldyBhbmRyb2lkLm9zLkhhbmRsZXIoYW5kcm9pZC5vcy5Mb29wZXIuZ2V0TWFpbkxvb3BlcigpKS5wb3N0KCgpIC0+IHsKICAgICAgICAgIElucHV0Q29ubmVjdGlvbiBjID0gZ2V0Q3VycmVudElucHV0Q29ubmVjdGlvbigpOwogICAgICAgICAgaWYgKGMgPT0gbnVsbCkgewogICAgICAgICAgICBVaS50b2FzdCh0aGlzLCAiSW5zdGFncmFtIGlucHV0IGNsb3NlZC4gVGFwIHRoZSBlbW9qaSBhZ2Fpbi4iKTsKICAgICAgICAgICAgcmV0dXJuOwogICAgICAgICAgfQogICAgICAgICAgdHJ5IHsKICAgICAgICAgICAgSW5wdXRDb250ZW50SW5mbyBjb250ZW50ID0gbmV3IElucHV0Q29udGVudEluZm8oCiAgICAgICAgICAgICAgICBnaWZVcmksIG5ldyBDbGlwRGVzY3JpcHRpb24oaXRlbS5sYWJlbCwgbmV3IFN0cmluZ1tdIHsiaW1hZ2UvZ2lmIn0pLCBudWxsKTsKICAgICAgICAgICAgYm9vbGVhbiBhY2NlcHRlZCA9IGMuY29tbWl0Q29udGVudCgKICAgICAgICAgICAgICAgIGNvbnRlbnQsIElucHV0Q29ubmVjdGlvbi5JTlBVVF9DT05URU5UX0dSQU5UX1JFQURfVVJJX1BFUk1JU1NJT04sIG51bGwpOwogICAgICAgICAgICBVaS50b2FzdCh0aGlzLCBhY2NlcHRlZCA/ICJTZW50IHRvIEluc3RhZ3JhbSBhcyBHSUYiIDogIkluc3RhZ3JhbSByZWplY3RlZCBHSUYiKTsKICAgICAgICAgIH0gY2F0Y2ggKFJ1bnRpbWVFeGNlcHRpb24gZSkgewogICAgICAgICAgICBVaS50b2FzdCh0aGlzLCAiSW5zdGFncmFtIGJsb2NrZWQgR0lGIHNlbmQiKTsKICAgICAgICAgIH0KICAgICAgICB9KTsKICAgICAgfSBjYXRjaCAoRXhjZXB0aW9uIGUpIHsKICAgICAgICBuZXcgYW5kcm9pZC5vcy5IYW5kbGVyKGFuZHJvaWQub3MuTG9vcGVyLmdldE1haW5Mb29wZXIoKSkucG9zdCgKICAgICAgICAgICAgKCkgLT4gVWkudG9hc3QodGhpcywgIkNvdWxkIG5vdCBwcmVwYXJlIEluc3RhZ3JhbSBHSUYiKSk7CiAgICAgIH0gZmluYWxseSB7CiAgICAgICAgaWYgKGNvbm5lY3Rpb24gIT0gbnVsbCkgY29ubmVjdGlvbi5kaXNjb25uZWN0KCk7CiAgICAgIH0KICAgIH0sICJpbnN0YWdyYW0tZ2lmLXNlbmQiKS5zdGFydCgpOwogIH0K
+          HINT_B64: ICAgIEVkaXRvckluZm8gc2VuZEluZm8gPSBnZXRDdXJyZW50SW5wdXRFZGl0b3JJbmZvKCk7CiAgICBTdHJpbmcgc2VuZFBhY2thZ2UgPSBzZW5kSW5mbyA9PSBudWxsIHx8IHNlbmRJbmZvLnBhY2thZ2VOYW1lID09IG51bGwgPyAiIiA6IHNlbmRJbmZvLnBhY2thZ2VOYW1lOwogICAgaWYgKHNlbmRQYWNrYWdlLmNvbnRhaW5zKCJpbnN0YWdyYW0iKSkgewogICAgICBUZXh0VmlldyBtb2RlVmlldyA9IFVpLnRleHQodGhpcywgIkluc3RhZ3JhbSBtb2RlOiBHSUYgb25seSIsIDEyLCBVaS5NVVRFRCk7CiAgICAgIG1vZGVWaWV3LnNldFBhZGRpbmcoVWkuZHAodGhpcywgOCksIFVpLmRwKHRoaXMsIDQpLCBVaS5kcCh0aGlzLCA4KSwgVWkuZHAodGhpcywgNCkpOwogICAgICBib2R5LmFkZFZpZXcobW9kZVZpZXcpOwogICAgfQogICAgTGlzdDxFbW9qaVN0b3JlLkl0ZW0+IGl0ZW1zID0gc3RvcmUubGlzdCgiIik7
         run: |
           python3 - <<'PY'
+          import base64, os, re
           from pathlib import Path
-          import re
-
           for gp in [Path('work/android-app/app/build.gradle'), Path('work/android-app/app/build.gradle.kts')]:
               if gp.exists():
                   text = gp.read_text()
                   text = re.sub(r'versionCode\s*[= ]\s*\d+', 'versionCode = 1602' if gp.suffix == '.kts' else 'versionCode 1602', text)
                   text = re.sub(r'versionName\s*[= ]\s*["\'][^"\']+["\']', 'versionName = "1.6.2"' if gp.suffix == '.kts' else 'versionName "1.6.2"', text)
                   gp.write_text(text)
-
           provider = Path('work/android-app/app/src/main/java/com/mehan/emojikeyboard/EmojiProvider.java')
-          provider.write_text(r'''package com.mehan.emojikeyboard;
-
-import android.content.ContentProvider;
-import android.content.ContentValues;
-import android.database.Cursor;
-import android.net.Uri;
-import android.os.ParcelFileDescriptor;
-import java.io.File;
-import java.io.FileNotFoundException;
-
-public final class EmojiProvider extends ContentProvider {
-  @Override public boolean onCreate() { return true; }
-
-  private File resolve(Uri uri) throws FileNotFoundException {
-    String name = uri.getLastPathSegment();
-    if (name == null || !name.matches("(?:[A-Za-z0-9_-]{32}|[a-f0-9-]{36})\\.(?:png|gif)")) {
-      throw new FileNotFoundException("Invalid emoji path");
-    }
-    File file = new File(EmojiStore.directory(getContext()), name);
-    if (!file.exists() || !file.isFile()) throw new FileNotFoundException("Emoji not found");
-    return file;
-  }
-
-  @Override public String getType(Uri uri) {
-    String name = uri.getLastPathSegment();
-    return name != null && name.endsWith(".gif") ? "image/gif" : "image/png";
-  }
-
-  @Override public ParcelFileDescriptor openFile(Uri uri, String mode) throws FileNotFoundException {
-    if (!"r".equals(mode)) throw new FileNotFoundException("Read only");
-    return ParcelFileDescriptor.open(resolve(uri), ParcelFileDescriptor.MODE_READ_ONLY);
-  }
-
-  @Override public Cursor query(Uri uri, String[] projection, String selection, String[] selectionArgs, String sortOrder) { return null; }
-  @Override public Uri insert(Uri uri, ContentValues values) { throw new UnsupportedOperationException(); }
-  @Override public int delete(Uri uri, String selection, String[] selectionArgs) { throw new UnsupportedOperationException(); }
-  @Override public int update(Uri uri, ContentValues values, String selection, String[] selectionArgs) { throw new UnsupportedOperationException(); }
-}
-''')
-
+          provider.write_bytes(base64.b64decode(os.environ['PROVIDER_B64']))
           service = Path('work/android-app/app/src/main/java/com/mehan/emojikeyboard/EmojiKeyboardService.java')
           s = service.read_text()
           old = '      b.setOnClickListener(v -> insert(item));\n      grid.addView(b, new android.view.ViewGroup.LayoutParams(width, Ui.dp(this, 72)));'
           new = '      b.setOnClickListener(v -> insertForCurrentApp(item));\n      grid.addView(b, new android.view.ViewGroup.LayoutParams(width, Ui.dp(this, 72)));'
-          if old not in s:
-              raise SystemExit('Could not locate My Emojis click listener')
+          if old not in s: raise SystemExit('Could not locate My Emojis click listener')
           s = s.replace(old, new, 1)
-
           marker = '\n  private void insert(EmojiStore.Item item) {'
-          methods = r'''
-  private void insertForCurrentApp(EmojiStore.Item item) {
-    EditorInfo info = getCurrentInputEditorInfo();
-    String pkg = info == null || info.packageName == null ? "" : info.packageName;
-    if (pkg.contains("instagram")) {
-      insertInstagramGif(item);
-      return;
-    }
-    insert(item);
-  }
-
-  private void insertInstagramGif(EmojiStore.Item item) {
-    Ui.toast(this, "Preparing GIF for Instagram…");
-    new Thread(() -> {
-      java.net.HttpURLConnection connection = null;
-      try {
-        String gifUrl = "https://ai-emoji-relay.onrender.com/api/emoji/library/gif/" + item.id + ".gif";
-        connection = (java.net.HttpURLConnection) new java.net.URL(gifUrl).openConnection();
-        connection.setConnectTimeout(15000);
-        connection.setReadTimeout(30000);
-        connection.setRequestProperty("Accept", "image/gif");
-        connection.connect();
-        if (connection.getResponseCode() != 200) throw new java.io.IOException("GIF HTTP " + connection.getResponseCode());
-        String type = connection.getContentType();
-        if (type == null || !type.toLowerCase(java.util.Locale.ROOT).startsWith("image/gif")) {
-          throw new java.io.IOException("Server did not return GIF");
-        }
-
-        java.io.File pngFile = store.file(item.id);
-        java.io.File gifFile = new java.io.File(pngFile.getParentFile(), item.id + ".gif");
-        try (java.io.InputStream in = new java.io.BufferedInputStream(connection.getInputStream());
-             java.io.OutputStream out = new java.io.BufferedOutputStream(new java.io.FileOutputStream(gifFile))) {
-          byte[] buffer = new byte[8192];
-          int n;
-          while ((n = in.read(buffer)) != -1) out.write(buffer, 0, n);
-        }
-        if (gifFile.length() < 6) throw new java.io.IOException("Empty GIF");
-
-        android.net.Uri gifUri = android.net.Uri.parse("content://" + EmojiStore.AUTHORITY + "/" + item.id + ".gif");
-        new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
-          InputConnection c = getCurrentInputConnection();
-          if (c == null) {
-            Ui.toast(this, "Instagram input closed. Tap the emoji again.");
-            return;
-          }
-          try {
-            InputContentInfo content = new InputContentInfo(
-                gifUri, new ClipDescription(item.label, new String[] {"image/gif"}), null);
-            boolean accepted = c.commitContent(
-                content, InputConnection.INPUT_CONTENT_GRANT_READ_URI_PERMISSION, null);
-            Ui.toast(this, accepted ? "Sent to Instagram as GIF" : "Instagram rejected GIF");
-          } catch (RuntimeException e) {
-            Ui.toast(this, "Instagram blocked GIF send");
-          }
-        });
-      } catch (Exception e) {
-        new android.os.Handler(android.os.Looper.getMainLooper()).post(
-            () -> Ui.toast(this, "Could not prepare Instagram GIF"));
-      } finally {
-        if (connection != null) connection.disconnect();
-      }
-    }, "instagram-gif-send").start();
-  }
-'''
-          if marker not in s:
-              raise SystemExit('Could not locate insert method')
-          s = s.replace(marker, '\n' + methods + marker, 1)
-
+          if marker not in s: raise SystemExit('Could not locate insert method')
+          s = s.replace(marker, '\n' + base64.b64decode(os.environ['METHODS_B64']).decode() + marker, 1)
           target = '    List<EmojiStore.Item> items = store.list("");'
-          hint = '''    EditorInfo sendInfo = getCurrentInputEditorInfo();
-    String sendPackage = sendInfo == null || sendInfo.packageName == null ? "" : sendInfo.packageName;
-    if (sendPackage.contains("instagram")) {
-      TextView modeView = Ui.text(this, "Instagram mode: GIF only", 12, Ui.MUTED);
-      modeView.setPadding(Ui.dp(this, 8), Ui.dp(this, 4), Ui.dp(this, 8), Ui.dp(this, 4));
-      body.addView(modeView);
-    }
-    List<EmojiStore.Item> items = store.list("");'''
-          if target not in s:
-              raise SystemExit('Could not locate My Emojis list')
-          s = s.replace(target, hint, 1)
+          if target not in s: raise SystemExit('Could not locate My Emojis list')
+          s = s.replace(target, base64.b64decode(os.environ['HINT_B64']).decode(), 1)
           service.write_text(s)
           PY
       - name: Verify patch
@@ -184,16 +70,7 @@ public final class EmojiProvider extends ContentProvider {
       - name: Sign with stable update key
         run: |
           base64 -d android-build/dev-update-key.jks.b64 > work/dev-update-key.jks
-          PASS=$(python3 - <<'PY'
-          import re
-          from pathlib import Path
-          t = Path('.github/workflows/android-keyboard.yml').read_text()
-          m = re.search(r'--ks-pass pass:([^\\\s]+)', t)
-          if not m:
-              raise SystemExit('Could not read stable signing password')
-          print(m.group(1))
-          PY
-          )
+          PASS=$(python3 -c "import re,pathlib; t=pathlib.Path('.github/workflows/android-keyboard.yml').read_text(); print(re.search(r'--ks-pass pass:([^\\\\\\s]+)', t).group(1))")
           APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
           "$APKSIGNER" sign \
             --ks work/dev-update-key.jks \
