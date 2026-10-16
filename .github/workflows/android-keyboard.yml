@@ -37,7 +37,6 @@ jobs:
           from pathlib import Path
           import re
 
-          # Same package and stable signing identity; just bump Android version.
           for gp in [Path('work/android-app/app/build.gradle'), Path('work/android-app/app/build.gradle.kts')]:
               if gp.exists():
                   s = gp.read_text()
@@ -47,7 +46,6 @@ jobs:
 
           p = Path('work/android-app/app/src/main/java/com/mehan/emojikeyboard/EmojiKeyboardService.java')
           s = p.read_text()
-
           old = '      b.setOnClickListener(v -> insert(item));\n      grid.addView(b, new android.view.ViewGroup.LayoutParams(width, Ui.dp(this, 72)));'
           new = '      b.setOnClickListener(v -> insertForCurrentApp(item));\n      grid.addView(b, new android.view.ViewGroup.LayoutParams(width, Ui.dp(this, 72)));'
           if old not in s:
@@ -55,79 +53,68 @@ jobs:
           s = s.replace(old, new, 1)
 
           marker = '\n  private void insert(EmojiStore.Item item) {'
-          methods = r'''
-  private void insertForCurrentApp(EmojiStore.Item item) {
-    EditorInfo info = getCurrentInputEditorInfo();
-    String pkg = info == null || info.packageName == null ? "" : info.packageName;
-    if (pkg.contains("instagram")) {
-      insertInstagramGif(item);
-      return;
-    }
-    insert(item);
-  }
-
-  private void insertInstagramGif(EmojiStore.Item item) {
-    Ui.toast(this, "Preparing GIF for Instagram…");
-    new Thread(() -> {
-      java.net.HttpURLConnection connection = null;
-      try {
-        String gifUrl = "https://ai-emoji-relay.onrender.com/api/emoji/library/gif/" + item.id + ".gif";
-        connection = (java.net.HttpURLConnection) new java.net.URL(gifUrl).openConnection();
-        connection.setConnectTimeout(15000);
-        connection.setReadTimeout(30000);
-        connection.setRequestProperty("Accept", "image/gif");
-        connection.connect();
-        if (connection.getResponseCode() != 200) throw new java.io.IOException("GIF HTTP " + connection.getResponseCode());
-        String type = connection.getContentType();
-        if (type == null || !type.toLowerCase(java.util.Locale.ROOT).startsWith("image/gif")) {
-          throw new java.io.IOException("Server did not return GIF");
-        }
-
-        java.io.File pngFile = store.file(item.id);
-        java.io.File gifFile = new java.io.File(pngFile.getParentFile(), item.id + ".gif");
-        try (java.io.InputStream in = new java.io.BufferedInputStream(connection.getInputStream());
-             java.io.OutputStream out = new java.io.BufferedOutputStream(new java.io.FileOutputStream(gifFile))) {
-          byte[] buffer = new byte[8192];
-          int n;
-          while ((n = in.read(buffer)) != -1) out.write(buffer, 0, n);
-        }
-        if (gifFile.length() < 6) throw new java.io.IOException("Empty GIF");
-
-        android.net.Uri original = item.uri();
-        android.net.Uri gifUri = androidx.core.content.FileProvider.getUriForFile(
-            this, original.getAuthority(), gifFile);
-        new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
-          InputConnection c = getCurrentInputConnection();
-          if (c == null) {
-            Ui.toast(this, "Instagram input closed. Tap the emoji again.");
-            return;
-          }
-          try {
-            InputContentInfo content = new InputContentInfo(
-                gifUri, new ClipDescription(item.label, new String[] {"image/gif"}), null);
-            boolean accepted = c.commitContent(
-                content, InputConnection.INPUT_CONTENT_GRANT_READ_URI_PERMISSION, null);
-            Ui.toast(this, accepted ? "Sent to Instagram as GIF" : "Instagram rejected GIF");
-          } catch (RuntimeException e) {
-            Ui.toast(this, "Instagram blocked GIF send");
-          }
-        });
-      } catch (Exception e) {
-        new android.os.Handler(android.os.Looper.getMainLooper()).post(
-            () -> Ui.toast(this, "Could not prepare Instagram GIF"));
-      } finally {
-        if (connection != null) connection.disconnect();
-      }
-    }, "instagram-gif-send").start();
-  }
-'''
+          method_lines = [
+              '  private void insertForCurrentApp(EmojiStore.Item item) {',
+              '    EditorInfo info = getCurrentInputEditorInfo();',
+              '    String pkg = info == null || info.packageName == null ? "" : info.packageName;',
+              '    if (pkg.contains("instagram")) {',
+              '      insertInstagramGif(item);',
+              '      return;',
+              '    }',
+              '    insert(item);',
+              '  }',
+              '',
+              '  private void insertInstagramGif(EmojiStore.Item item) {',
+              '    Ui.toast(this, "Preparing GIF for Instagram…");',
+              '    new Thread(() -> {',
+              '      java.net.HttpURLConnection connection = null;',
+              '      try {',
+              '        String gifUrl = "https://ai-emoji-relay.onrender.com/api/emoji/library/gif/" + item.id + ".gif";',
+              '        connection = (java.net.HttpURLConnection) new java.net.URL(gifUrl).openConnection();',
+              '        connection.setConnectTimeout(15000);',
+              '        connection.setReadTimeout(30000);',
+              '        connection.setRequestProperty("Accept", "image/gif");',
+              '        connection.connect();',
+              '        if (connection.getResponseCode() != 200) throw new java.io.IOException("GIF HTTP " + connection.getResponseCode());',
+              '        String type = connection.getContentType();',
+              '        if (type == null || !type.toLowerCase(java.util.Locale.ROOT).startsWith("image/gif")) throw new java.io.IOException("Server did not return GIF");',
+              '        java.io.File pngFile = store.file(item.id);',
+              '        java.io.File gifFile = new java.io.File(pngFile.getParentFile(), item.id + ".gif");',
+              '        try (java.io.InputStream in = new java.io.BufferedInputStream(connection.getInputStream());',
+              '             java.io.OutputStream out = new java.io.BufferedOutputStream(new java.io.FileOutputStream(gifFile))) {',
+              '          byte[] buffer = new byte[8192];',
+              '          int n;',
+              '          while ((n = in.read(buffer)) != -1) out.write(buffer, 0, n);',
+              '        }',
+              '        if (gifFile.length() < 6) throw new java.io.IOException("Empty GIF");',
+              '        android.net.Uri original = item.uri();',
+              '        android.net.Uri gifUri = androidx.core.content.FileProvider.getUriForFile(this, original.getAuthority(), gifFile);',
+              '        new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {',
+              '          InputConnection c = getCurrentInputConnection();',
+              '          if (c == null) { Ui.toast(this, "Instagram input closed. Tap the emoji again."); return; }',
+              '          try {',
+              '            InputContentInfo content = new InputContentInfo(gifUri, new ClipDescription(item.label, new String[] {"image/gif"}), null);',
+              '            boolean accepted = c.commitContent(content, InputConnection.INPUT_CONTENT_GRANT_READ_URI_PERMISSION, null);',
+              '            Ui.toast(this, accepted ? "Sent to Instagram as GIF" : "Instagram rejected GIF");',
+              '          } catch (RuntimeException e) {',
+              '            Ui.toast(this, "Instagram blocked GIF send");',
+              '          }',
+              '        });',
+              '      } catch (Exception e) {',
+              '        new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> Ui.toast(this, "Could not prepare Instagram GIF"));',
+              '      } finally {',
+              '        if (connection != null) connection.disconnect();',
+              '      }',
+              '    }, "instagram-gif-send").start();',
+              '  }',
+              ''
+          ]
           if marker not in s:
               raise SystemExit('Could not locate insert method')
-          s = s.replace(marker, '\n' + methods + marker, 1)
+          s = s.replace(marker, '\n' + '\n'.join(method_lines) + marker, 1)
 
-          # Keep a tiny status hint only inside Instagram; remove the old MIME probe text.
           target = '    List<EmojiStore.Item> items = store.list("");'
-          hint = [
+          hint_lines = [
               '    EditorInfo sendInfo = getCurrentInputEditorInfo();',
               '    String sendPackage = sendInfo == null || sendInfo.packageName == null ? "" : sendInfo.packageName;',
               '    if (sendPackage.contains("instagram")) {',
@@ -139,7 +126,7 @@ jobs:
           ]
           if target not in s:
               raise SystemExit('Could not locate My Emojis list')
-          s = s.replace(target, '\n'.join(hint), 1)
+          s = s.replace(target, '\n'.join(hint_lines), 1)
           p.write_text(s)
           PY
       - name: Verify Instagram GIF-only patch
