@@ -31,51 +31,120 @@ jobs:
           tar -tzf work/android-app.tar.gz >/dev/null
           tar -xzf work/android-app.tar.gz -C work
           sed -i 's/Ui\.column(/Ui.col(/g' work/android-app/app/src/main/java/com/mehan/emojikeyboard/EmojiKeyboardService.java
-      - name: Patch version and Instagram capability probe
+      - name: Patch Instagram GIF-only sending
         run: |
           python3 - <<'PY'
           from pathlib import Path
+          import re
 
-          # Keep the app/package the same, but give Android a newer version code/name.
-          candidates = [
-              Path('work/android-app/app/build.gradle'),
-              Path('work/android-app/app/build.gradle.kts'),
-          ]
-          for gp in candidates:
+          # Same package and stable signing identity; just bump Android version.
+          for gp in [Path('work/android-app/app/build.gradle'), Path('work/android-app/app/build.gradle.kts')]:
               if gp.exists():
                   s = gp.read_text()
-                  import re
-                  s = re.sub(r'versionCode\s*[= ]\s*\d+', 'versionCode = 1601' if gp.suffix == '.kts' else 'versionCode 1601', s)
-                  s = re.sub(r'versionName\s*[= ]\s*["\'][^"\']+["\']', 'versionName = "1.6.1"' if gp.suffix == '.kts' else 'versionName "1.6.1"', s)
+                  s = re.sub(r'versionCode\s*[= ]\s*\d+', 'versionCode = 1602' if gp.suffix == '.kts' else 'versionCode 1602', s)
+                  s = re.sub(r'versionName\s*[= ]\s*["\'][^"\']+["\']', 'versionName = "1.6.2"' if gp.suffix == '.kts' else 'versionName "1.6.2"', s)
                   gp.write_text(s)
 
           p = Path('work/android-app/app/src/main/java/com/mehan/emojikeyboard/EmojiKeyboardService.java')
           s = p.read_text()
+
+          old = '      b.setOnClickListener(v -> insert(item));\n      grid.addView(b, new android.view.ViewGroup.LayoutParams(width, Ui.dp(this, 72)));'
+          new = '      b.setOnClickListener(v -> insertForCurrentApp(item));\n      grid.addView(b, new android.view.ViewGroup.LayoutParams(width, Ui.dp(this, 72)));'
+          if old not in s:
+              raise SystemExit('Could not locate My Emojis click listener')
+          s = s.replace(old, new, 1)
+
+          marker = '\n  private void insert(EmojiStore.Item item) {'
+          methods = r'''
+  private void insertForCurrentApp(EmojiStore.Item item) {
+    EditorInfo info = getCurrentInputEditorInfo();
+    String pkg = info == null || info.packageName == null ? "" : info.packageName;
+    if (pkg.contains("instagram")) {
+      insertInstagramGif(item);
+      return;
+    }
+    insert(item);
+  }
+
+  private void insertInstagramGif(EmojiStore.Item item) {
+    Ui.toast(this, "Preparing GIF for Instagram…");
+    new Thread(() -> {
+      java.net.HttpURLConnection connection = null;
+      try {
+        String gifUrl = "https://ai-emoji-relay.onrender.com/api/emoji/library/gif/" + item.id + ".gif";
+        connection = (java.net.HttpURLConnection) new java.net.URL(gifUrl).openConnection();
+        connection.setConnectTimeout(15000);
+        connection.setReadTimeout(30000);
+        connection.setRequestProperty("Accept", "image/gif");
+        connection.connect();
+        if (connection.getResponseCode() != 200) throw new java.io.IOException("GIF HTTP " + connection.getResponseCode());
+        String type = connection.getContentType();
+        if (type == null || !type.toLowerCase(java.util.Locale.ROOT).startsWith("image/gif")) {
+          throw new java.io.IOException("Server did not return GIF");
+        }
+
+        java.io.File pngFile = store.file(item.id);
+        java.io.File gifFile = new java.io.File(pngFile.getParentFile(), item.id + ".gif");
+        try (java.io.InputStream in = new java.io.BufferedInputStream(connection.getInputStream());
+             java.io.OutputStream out = new java.io.BufferedOutputStream(new java.io.FileOutputStream(gifFile))) {
+          byte[] buffer = new byte[8192];
+          int n;
+          while ((n = in.read(buffer)) != -1) out.write(buffer, 0, n);
+        }
+        if (gifFile.length() < 6) throw new java.io.IOException("Empty GIF");
+
+        android.net.Uri original = item.uri();
+        android.net.Uri gifUri = androidx.core.content.FileProvider.getUriForFile(
+            this, original.getAuthority(), gifFile);
+        new android.os.Handler(android.os.Looper.getMainLooper()).post(() -> {
+          InputConnection c = getCurrentInputConnection();
+          if (c == null) {
+            Ui.toast(this, "Instagram input closed. Tap the emoji again.");
+            return;
+          }
+          try {
+            InputContentInfo content = new InputContentInfo(
+                gifUri, new ClipDescription(item.label, new String[] {"image/gif"}), null);
+            boolean accepted = c.commitContent(
+                content, InputConnection.INPUT_CONTENT_GRANT_READ_URI_PERMISSION, null);
+            Ui.toast(this, accepted ? "Sent to Instagram as GIF" : "Instagram rejected GIF");
+          } catch (RuntimeException e) {
+            Ui.toast(this, "Instagram blocked GIF send");
+          }
+        });
+      } catch (Exception e) {
+        new android.os.Handler(android.os.Looper.getMainLooper()).post(
+            () -> Ui.toast(this, "Could not prepare Instagram GIF"));
+      } finally {
+        if (connection != null) connection.disconnect();
+      }
+    }, "instagram-gif-send").start();
+  }
+'''
+          if marker not in s:
+              raise SystemExit('Could not locate insert method')
+          s = s.replace(marker, '\n' + methods + marker, 1)
+
+          # Keep a tiny status hint only inside Instagram; remove the old MIME probe text.
           target = '    List<EmojiStore.Item> items = store.list("");'
-          lines = [
-              '    EditorInfo probeInfo = getCurrentInputEditorInfo();',
-              '    String probePackage = probeInfo == null || probeInfo.packageName == null ? "unknown" : probeInfo.packageName;',
-              '    if (probePackage.contains("instagram")) {',
-              '      StringBuilder probe = new StringBuilder("Instagram accepts: ");',
-              '      if (probeInfo.contentMimeTypes == null || probeInfo.contentMimeTypes.length == 0) {',
-              '        probe.append("text only / no rich MIME types advertised");',
-              '      } else {',
-              '        for (int i = 0; i < probeInfo.contentMimeTypes.length; i++) {',
-              '          if (i > 0) probe.append(", ");',
-              '          probe.append(probeInfo.contentMimeTypes[i]);',
-              '        }',
-              '      }',
-              '      TextView probeView = Ui.text(this, probe.toString(), 12, Ui.MUTED);',
-              '      probeView.setPadding(Ui.dp(this, 8), Ui.dp(this, 4), Ui.dp(this, 8), Ui.dp(this, 4));',
-              '      body.addView(probeView);',
+          hint = [
+              '    EditorInfo sendInfo = getCurrentInputEditorInfo();',
+              '    String sendPackage = sendInfo == null || sendInfo.packageName == null ? "" : sendInfo.packageName;',
+              '    if (sendPackage.contains("instagram")) {',
+              '      TextView modeView = Ui.text(this, "Instagram mode: GIF only", 12, Ui.MUTED);',
+              '      modeView.setPadding(Ui.dp(this, 8), Ui.dp(this, 4), Ui.dp(this, 8), Ui.dp(this, 4));',
+              '      body.addView(modeView);',
               '    }',
               '    List<EmojiStore.Item> items = store.list("");'
           ]
           if target not in s:
               raise SystemExit('Could not locate My Emojis list')
-          s = s.replace(target, '\n'.join(lines), 1)
+          s = s.replace(target, '\n'.join(hint), 1)
           p.write_text(s)
           PY
+      - name: Verify Instagram GIF-only patch
+        run: |
+          grep -n -E 'insertForCurrentApp|insertInstagramGif|image/gif|Instagram mode: GIF only|setOnClickListener' work/android-app/app/src/main/java/com/mehan/emojikeyboard/EmojiKeyboardService.java
       - name: Build debug APK
         run: gradle -p work/android-app :app:assembleDebug --stacktrace
       - name: Sign with stable development update key
@@ -87,12 +156,12 @@ jobs:
             --ks-key-alias emojiupdate \
             --ks-pass pass:emojiupdate2026 \
             --key-pass pass:emojiupdate2026 \
-            --out work/AI-Emoji-Keyboard-v1.6.1-stable-update.apk \
+            --out work/AI-Emoji-Keyboard-v1.6.2-instagram-gif-only.apk \
             work/android-app/app/build/outputs/apk/debug/app-debug.apk
-          "$APKSIGNER" verify --verbose --print-certs work/AI-Emoji-Keyboard-v1.6.1-stable-update.apk
+          "$APKSIGNER" verify --verbose --print-certs work/AI-Emoji-Keyboard-v1.6.2-instagram-gif-only.apk
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: AI-Emoji-Keyboard-v1.6.1-stable-update
-          path: work/AI-Emoji-Keyboard-v1.6.1-stable-update.apk
+          name: AI-Emoji-Keyboard-v1.6.2-instagram-gif-only
+          path: work/AI-Emoji-Keyboard-v1.6.2-instagram-gif-only.apk
           if-no-files-found: error
