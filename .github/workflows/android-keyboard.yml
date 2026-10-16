@@ -42,6 +42,11 @@ jobs:
                   s = gp.read_text()
                   s = re.sub(r'versionCode\s*[= ]\s*\d+', 'versionCode = 1602' if gp.suffix == '.kts' else 'versionCode 1602', s)
                   s = re.sub(r'versionName\s*[= ]\s*["\'][^"\']+["\']', 'versionName = "1.6.2"' if gp.suffix == '.kts' else 'versionName "1.6.2"', s)
+                  if 'androidx.core:core:' not in s:
+                      if gp.suffix == '.kts':
+                          s = s.replace('dependencies {', 'dependencies {\n    implementation("androidx.core:core:1.15.0")', 1)
+                      else:
+                          s = s.replace('dependencies {', "dependencies {\n    implementation 'androidx.core:core:1.15.0'", 1)
                   gp.write_text(s)
 
           p = Path('work/android-app/app/src/main/java/com/mehan/emojikeyboard/EmojiKeyboardService.java')
@@ -129,6 +134,12 @@ jobs:
           s = s.replace(target, '\n'.join(hint_lines), 1)
           p.write_text(s)
           PY
+      - name: Inspect content provider wiring
+        run: |
+          echo '--- manifest providers ---'
+          grep -n -A12 -B4 -E 'provider|FILE_PROVIDER_PATHS|authorities' work/android-app/app/src/main/AndroidManifest.xml || true
+          echo '--- provider classes / URI builders ---'
+          grep -R -n -E 'class .*Provider|ContentProvider|FileProvider|getUriForFile|content://' work/android-app/app/src/main/java || true
       - name: Verify Instagram GIF-only patch
         run: |
           grep -n -E 'insertForCurrentApp|insertInstagramGif|image/gif|Instagram mode: GIF only|setOnClickListener' work/android-app/app/src/main/java/com/mehan/emojikeyboard/EmojiKeyboardService.java
