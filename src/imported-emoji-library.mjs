@@ -70,6 +70,7 @@ export function createImportedEmojiLibrary({ publicBaseUrl, storageDir, importSe
 
   const persist = () => writeFileSync(indexPath, JSON.stringify(items), { mode: 0o600 });
   const imagePath = id => join(dir, `${id}.png`);
+  const gifPath = id => join(dir, `${id}.gif`);
 
   async function importEmoji(req, res) {
     cors(res);
@@ -101,6 +102,7 @@ export function createImportedEmojiLibrary({ publicBaseUrl, storageDir, importSe
         prompt,
         createdAt,
         imageUrl: `${base.origin}${base.pathname.replace(/\/$/u, '')}/api/emoji/library/image/${id}.png`,
+        gifUrl: `${base.origin}${base.pathname.replace(/\/$/u, '')}/api/emoji/library/gif/${id}.gif`,
         mimeType: 'image/png'
       };
       items = [item, ...items].slice(0, 500);
@@ -134,6 +136,32 @@ export function createImportedEmojiLibrary({ publicBaseUrl, storageDir, importSe
     if (req.method === 'HEAD') res.end(); else res.end(png);
   }
 
+  async function serveGif(req, res, id) {
+    const source = imagePath(id);
+    if (!existsSync(source)) return json(res, 404, { success: false, code: 'IMAGE_NOT_FOUND', error: 'Emoji image not found.' });
+    try {
+      const cached = gifPath(id);
+      if (!existsSync(cached)) {
+        const gif = await sharp(source)
+          .ensureAlpha()
+          .gif({ effort: 4, colours: 256, dither: 0 })
+          .toBuffer();
+        writeFileSync(cached, gif, { mode: 0o600 });
+      }
+      const gif = readFileSync(cached);
+      res.writeHead(200, {
+        'Content-Type': 'image/gif',
+        'Content-Length': String(gif.length),
+        'Cache-Control': 'private, max-age=86400',
+        'X-Content-Type-Options': 'nosniff',
+        'Strict-Transport-Security': 'max-age=31536000'
+      });
+      if (req.method === 'HEAD') res.end(); else res.end(gif);
+    } catch {
+      json(res, 500, { success: false, code: 'GIF_FAILED', error: 'GIF could not be prepared.' });
+    }
+  }
+
   function handle(req, res) {
     let pathname;
     try { pathname = new URL(req.url ?? '/', 'https://relay.invalid').pathname; } catch { return false; }
@@ -147,6 +175,11 @@ export function createImportedEmojiLibrary({ publicBaseUrl, storageDir, importSe
     if (pathname === '/api/emojis' && req.method === 'GET') { listEmojis(req, res); return true; }
     const image = /^\/api\/emoji\/library\/image\/([A-Za-z0-9_-]{32})\.png$/u.exec(pathname);
     if (image && ['GET', 'HEAD'].includes(req.method ?? '')) { serveImage(req, res, image[1]); return true; }
+    const gif = /^\/api\/emoji\/library\/gif\/([A-Za-z0-9_-]{32})\.gif$/u.exec(pathname);
+    if (gif && ['GET', 'HEAD'].includes(req.method ?? '')) {
+      serveGif(req, res, gif[1]).catch(() => json(res, 500, { success: false, code: 'GIF_FAILED', error: 'GIF could not be prepared.' }));
+      return true;
+    }
     return false;
   }
 
