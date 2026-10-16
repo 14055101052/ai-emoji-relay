@@ -18,11 +18,13 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.13'
+
       - name: Install Android SDK packages
         run: |
           SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
           yes | "$SDKMANAGER" --licenses >/dev/null || true
           "$SDKMANAGER" "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+
       - name: Restore Android source
         run: |
           mkdir -p work
@@ -30,59 +32,66 @@ jobs:
           tar -tzf work/android-app.tar.gz >/dev/null
           tar -xzf work/android-app.tar.gz -C work
           sed -i 's/Ui\.column(/Ui.col(/g' work/android-app/app/src/main/java/com/mehan/emojikeyboard/EmojiKeyboardService.java
-      - name: Patch Instagram GIF-only mode
+
+      - name: Patch silent Instagram GIF route
         env:
           PROVIDER_B64: cGFja2FnZSBjb20ubWVoYW4uZW1vamlrZXlib2FyZDsKCmltcG9ydCBhbmRyb2lkLmNvbnRlbnQuQ29udGVudFByb3ZpZGVyOwppbXBvcnQgYW5kcm9pZC5jb250ZW50LkNvbnRlbnRWYWx1ZXM7CmltcG9ydCBhbmRyb2lkLmRhdGFiYXNlLkN1cnNvcjsKaW1wb3J0IGFuZHJvaWQubmV0LlVyaTsKaW1wb3J0IGFuZHJvaWQub3MuUGFyY2VsRmlsZURlc2NyaXB0b3I7CmltcG9ydCBqYXZhLmlvLkZpbGU7CmltcG9ydCBqYXZhLmlvLkZpbGVOb3RGb3VuZEV4Y2VwdGlvbjsKCnB1YmxpYyBmaW5hbCBjbGFzcyBFbW9qaVByb3ZpZGVyIGV4dGVuZHMgQ29udGVudFByb3ZpZGVyIHsKICBAT3ZlcnJpZGUgcHVibGljIGJvb2xlYW4gb25DcmVhdGUoKSB7IHJldHVybiB0cnVlOyB9CgogIHByaXZhdGUgRmlsZSByZXNvbHZlKFVyaSB1cmkpIHRocm93cyBGaWxlTm90Rm91bmRFeGNlcHRpb24gewogICAgU3RyaW5nIG5hbWUgPSB1cmkuZ2V0TGFzdFBhdGhTZWdtZW50KCk7CiAgICBpZiAobmFtZSA9PSBudWxsIHx8ICFuYW1lLm1hdGNoZXMoIig/OltBLVphLXowLTlfLV17MzJ9fFthLWYwLTktXXszNn0pXFwuKD86cG5nfGdpZikiKSkgewogICAgICB0aHJvdyBuZXcgRmlsZU5vdEZvdW5kRXhjZXB0aW9uKCJJbnZhbGlkIGVtb2ppIHBhdGgiKTsKICAgIH0KICAgIEZpbGUgZmlsZSA9IG5ldyBGaWxlKEVtb2ppU3RvcmUuZGlyZWN0b3J5KGdldENvbnRleHQoKSksIG5hbWUpOwogICAgaWYgKCFmaWxlLmV4aXN0cygpIHx8ICFmaWxlLmlzRmlsZSgpKSB0aHJvdyBuZXcgRmlsZU5vdEZvdW5kRXhjZXB0aW9uKCJFbW9qaSBub3QgZm91bmQiKTsKICAgIHJldHVybiBmaWxlOwogIH0KCiAgQE92ZXJyaWRlIHB1YmxpYyBTdHJpbmcgZ2V0VHlwZShVcmkgdXJpKSB7CiAgICBTdHJpbmcgbmFtZSA9IHVyaS5nZXRMYXN0UGF0aFNlZ21lbnQoKTsKICAgIHJldHVybiBuYW1lICE9IG51bGwgJiYgbmFtZS5lbmRzV2l0aCgiLmdpZiIpID8gImltYWdlL2dpZiIgOiAiaW1hZ2UvcG5nIjsKICB9CgogIEBPdmVycmlkZSBwdWJsaWMgUGFyY2VsRmlsZURlc2NyaXB0b3Igb3BlbkZpbGUoVXJpIHVyaSwgU3RyaW5nIG1vZGUpIHRocm93cyBGaWxlTm90Rm91bmRFeGNlcHRpb24gewogICAgaWYgKCEiciIuZXF1YWxzKG1vZGUpKSB0aHJvdyBuZXcgRmlsZU5vdEZvdW5kRXhjZXB0aW9uKCJSZWFkIG9ubHkiKTsKICAgIHJldHVybiBQYXJjZWxGaWxlRGVzY3JpcHRvci5vcGVuKHJlc29sdmUodXJpKSwgUGFyY2VsRmlsZURlc2NyaXB0b3IuTU9ERV9SRUFEX09OTFkpOwogIH0KCiAgQE92ZXJyaWRlIHB1YmxpYyBDdXJzb3IgcXVlcnkoVXJpIHVyaSwgU3RyaW5nW10gcHJvamVjdGlvbiwgU3RyaW5nIHNlbGVjdGlvbiwgU3RyaW5nW10gc2VsZWN0aW9uQXJncywgU3RyaW5nIHNvcnRPcmRlcikgeyByZXR1cm4gbnVsbDsgfQogIEBPdmVycmlkZSBwdWJsaWMgVXJpIGluc2VydChVcmkgdXJpLCBDb250ZW50VmFsdWVzIHZhbHVlcykgeyB0aHJvdyBuZXcgVW5zdXBwb3J0ZWRPcGVyYXRpb25FeGNlcHRpb24oKTsgfQogIEBPdmVycmlkZSBwdWJsaWMgaW50IGRlbGV0ZShVcmkgdXJpLCBTdHJpbmcgc2VsZWN0aW9uLCBTdHJpbmdbXSBzZWxlY3Rpb25BcmdzKSB7IHRocm93IG5ldyBVbnN1cHBvcnRlZE9wZXJhdGlvbkV4Y2VwdGlvbigpOyB9CiAgQE92ZXJyaWRlIHB1YmxpYyBpbnQgdXBkYXRlKFVyaSB1cmksIENvbnRlbnRWYWx1ZXMgdmFsdWVzLCBTdHJpbmcgc2VsZWN0aW9uLCBTdHJpbmdbXSBzZWxlY3Rpb25BcmdzKSB7IHRocm93IG5ldyBVbnN1cHBvcnRlZE9wZXJhdGlvbkV4Y2VwdGlvbigpOyB9Cn0K
-          METHODS_B64: CiAgcHJpdmF0ZSB2b2lkIGluc2VydEZvckN1cnJlbnRBcHAoRW1vamlTdG9yZS5JdGVtIGl0ZW0pIHsKICAgIEVkaXRvckluZm8gaW5mbyA9IGdldEN1cnJlbnRJbnB1dEVkaXRvckluZm8oKTsKICAgIFN0cmluZyBwa2cgPSBpbmZvID09IG51bGwgfHwgaW5mby5wYWNrYWdlTmFtZSA9PSBudWxsID8gIiIgOiBpbmZvLnBhY2thZ2VOYW1lOwogICAgaWYgKHBrZy5jb250YWlucygiaW5zdGFncmFtIikpIHsKICAgICAgaW5zZXJ0SW5zdGFncmFtR2lmKGl0ZW0pOwogICAgICByZXR1cm47CiAgICB9CiAgICBpbnNlcnQoaXRlbSk7CiAgfQoKICBwcml2YXRlIHZvaWQgaW5zZXJ0SW5zdGFncmFtR2lmKEVtb2ppU3RvcmUuSXRlbSBpdGVtKSB7CiAgICBVaS50b2FzdCh0aGlzLCAiUHJlcGFyaW5nIEdJRiBmb3IgSW5zdGFncmFt4oCmIik7CiAgICBuZXcgVGhyZWFkKCgpIC0+IHsKICAgICAgamF2YS5uZXQuSHR0cFVSTENvbm5lY3Rpb24gY29ubmVjdGlvbiA9IG51bGw7CiAgICAgIHRyeSB7CiAgICAgICAgU3RyaW5nIGdpZlVybCA9ICJodHRwczovL2FpLWVtb2ppLXJlbGF5Lm9ucmVuZGVyLmNvbS9hcGkvZW1vamkvbGlicmFyeS9naWYvIiArIGl0ZW0uaWQgKyAiLmdpZiI7CiAgICAgICAgY29ubmVjdGlvbiA9IChqYXZhLm5ldC5IdHRwVVJMQ29ubmVjdGlvbikgbmV3IGphdmEubmV0LlVSTChnaWZVcmwpLm9wZW5Db25uZWN0aW9uKCk7CiAgICAgICAgY29ubmVjdGlvbi5zZXRDb25uZWN0VGltZW91dCgxNTAwMCk7CiAgICAgICAgY29ubmVjdGlvbi5zZXRSZWFkVGltZW91dCgzMDAwMCk7CiAgICAgICAgY29ubmVjdGlvbi5zZXRSZXF1ZXN0UHJvcGVydHkoIkFjY2VwdCIsICJpbWFnZS9naWYiKTsKICAgICAgICBjb25uZWN0aW9uLmNvbm5lY3QoKTsKICAgICAgICBpZiAoY29ubmVjdGlvbi5nZXRSZXNwb25zZUNvZGUoKSAhPSAyMDApIHRocm93IG5ldyBqYXZhLmlvLklPRXhjZXB0aW9uKCJHSUYgSFRUUCAiICsgY29ubmVjdGlvbi5nZXRSZXNwb25zZUNvZGUoKSk7CiAgICAgICAgU3RyaW5nIHR5cGUgPSBjb25uZWN0aW9uLmdldENvbnRlbnRUeXBlKCk7CiAgICAgICAgaWYgKHR5cGUgPT0gbnVsbCB8fCAhdHlwZS50b0xvd2VyQ2FzZShqYXZhLnV0aWwuTG9jYWxlLlJPT1QpLnN0YXJ0c1dpdGgoImltYWdlL2dpZiIpKSB7CiAgICAgICAgICB0aHJvdyBuZXcgamF2YS5pby5JT0V4Y2VwdGlvbigiU2VydmVyIGRpZCBub3QgcmV0dXJuIEdJRiIpOwogICAgICAgIH0KICAgICAgICBqYXZhLmlvLkZpbGUgcG5nRmlsZSA9IHN0b3JlLmZpbGUoaXRlbS5pZCk7CiAgICAgICAgamF2YS5pby5GaWxlIGdpZkZpbGUgPSBuZXcgamF2YS5pby5GaWxlKHBuZ0ZpbGUuZ2V0UGFyZW50RmlsZSgpLCBpdGVtLmlkICsgIi5naWYiKTsKICAgICAgICB0cnkgKGphdmEuaW8uSW5wdXRTdHJlYW0gaW4gPSBuZXcgamF2YS5pby5CdWZmZXJlZElucHV0U3RyZWFtKGNvbm5lY3Rpb24uZ2V0SW5wdXRTdHJlYW0oKSk7CiAgICAgICAgICAgICBqYXZhLmlvLk91dHB1dFN0cmVhbSBvdXQgPSBuZXcgamF2YS5pby5CdWZmZXJlZE91dHB1dFN0cmVhbShuZXcgamF2YS5pby5GaWxlT3V0cHV0U3RyZWFtKGdpZkZpbGUpKSkgewogICAgICAgICAgYnl0ZVtdIGJ1ZmZlciA9IG5ldyBieXRlWzgxOTJdOwogICAgICAgICAgaW50IG47CiAgICAgICAgICB3aGlsZSAoKG4gPSBpbi5yZWFkKGJ1ZmZlcikpICE9IC0xKSBvdXQud3JpdGUoYnVmZmVyLCAwLCBuKTsKICAgICAgICB9CiAgICAgICAgaWYgKGdpZkZpbGUubGVuZ3RoKCkgPCA2KSB0aHJvdyBuZXcgamF2YS5pby5JT0V4Y2VwdGlvbigiRW1wdHkgR0lGIik7CiAgICAgICAgYW5kcm9pZC5uZXQuVXJpIGdpZlVyaSA9IGFuZHJvaWQubmV0LlVyaS5wYXJzZSgiY29udGVudDovLyIgKyBFbW9qaVN0b3JlLkFVVEhPUklUWSArICIvIiArIGl0ZW0uaWQgKyAiLmdpZiIpOwogICAgICAgIG5ldyBhbmRyb2lkLm9zLkhhbmRsZXIoYW5kcm9pZC5vcy5Mb29wZXIuZ2V0TWFpbkxvb3BlcigpKS5wb3N0KCgpIC0+IHsKICAgICAgICAgIElucHV0Q29ubmVjdGlvbiBjID0gZ2V0Q3VycmVudElucHV0Q29ubmVjdGlvbigpOwogICAgICAgICAgaWYgKGMgPT0gbnVsbCkgewogICAgICAgICAgICBVaS50b2FzdCh0aGlzLCAiSW5zdGFncmFtIGlucHV0IGNsb3NlZC4gVGFwIHRoZSBlbW9qaSBhZ2Fpbi4iKTsKICAgICAgICAgICAgcmV0dXJuOwogICAgICAgICAgfQogICAgICAgICAgdHJ5IHsKICAgICAgICAgICAgSW5wdXRDb250ZW50SW5mbyBjb250ZW50ID0gbmV3IElucHV0Q29udGVudEluZm8oCiAgICAgICAgICAgICAgICBnaWZVcmksIG5ldyBDbGlwRGVzY3JpcHRpb24oaXRlbS5sYWJlbCwgbmV3IFN0cmluZ1tdIHsiaW1hZ2UvZ2lmIn0pLCBudWxsKTsKICAgICAgICAgICAgYm9vbGVhbiBhY2NlcHRlZCA9IGMuY29tbWl0Q29udGVudCgKICAgICAgICAgICAgICAgIGNvbnRlbnQsIElucHV0Q29ubmVjdGlvbi5JTlBVVF9DT05URU5UX0dSQU5UX1JFQURfVVJJX1BFUk1JU1NJT04sIG51bGwpOwogICAgICAgICAgICBVaS50b2FzdCh0aGlzLCBhY2NlcHRlZCA/ICJTZW50IHRvIEluc3RhZ3JhbSBhcyBHSUYiIDogIkluc3RhZ3JhbSByZWplY3RlZCBHSUYiKTsKICAgICAgICAgIH0gY2F0Y2ggKFJ1bnRpbWVFeGNlcHRpb24gZSkgewogICAgICAgICAgICBVaS50b2FzdCh0aGlzLCAiSW5zdGFncmFtIGJsb2NrZWQgR0lGIHNlbmQiKTsKICAgICAgICAgIH0KICAgICAgICB9KTsKICAgICAgfSBjYXRjaCAoRXhjZXB0aW9uIGUpIHsKICAgICAgICBuZXcgYW5kcm9pZC5vcy5IYW5kbGVyKGFuZHJvaWQub3MuTG9vcGVyLmdldE1haW5Mb29wZXIoKSkucG9zdCgKICAgICAgICAgICAgKCkgLT4gVWkudG9hc3QodGhpcywgIkNvdWxkIG5vdCBwcmVwYXJlIEluc3RhZ3JhbSBHSUYiKSk7CiAgICAgIH0gZmluYWxseSB7CiAgICAgICAgaWYgKGNvbm5lY3Rpb24gIT0gbnVsbCkgY29ubmVjdGlvbi5kaXNjb25uZWN0KCk7CiAgICAgIH0KICAgIH0sICJpbnN0YWdyYW0tZ2lmLXNlbmQiKS5zdGFydCgpOwogIH0K
-          HINT_B64: ICAgIEVkaXRvckluZm8gc2VuZEluZm8gPSBnZXRDdXJyZW50SW5wdXRFZGl0b3JJbmZvKCk7CiAgICBTdHJpbmcgc2VuZFBhY2thZ2UgPSBzZW5kSW5mbyA9PSBudWxsIHx8IHNlbmRJbmZvLnBhY2thZ2VOYW1lID09IG51bGwgPyAiIiA6IHNlbmRJbmZvLnBhY2thZ2VOYW1lOwogICAgaWYgKHNlbmRQYWNrYWdlLmNvbnRhaW5zKCJpbnN0YWdyYW0iKSkgewogICAgICBUZXh0VmlldyBtb2RlVmlldyA9IFVpLnRleHQodGhpcywgIkluc3RhZ3JhbSBtb2RlOiBHSUYgb25seSIsIDEyLCBVaS5NVVRFRCk7CiAgICAgIG1vZGVWaWV3LnNldFBhZGRpbmcoVWkuZHAodGhpcywgOCksIFVpLmRwKHRoaXMsIDQpLCBVaS5kcCh0aGlzLCA4KSwgVWkuZHAodGhpcywgNCkpOwogICAgICBib2R5LmFkZFZpZXcobW9kZVZpZXcpOwogICAgfQogICAgTGlzdDxFbW9qaVN0b3JlLkl0ZW0+IGl0ZW1zID0gc3RvcmUubGlzdCgiIik7
+          METHODS_B64: CiAgcHJpdmF0ZSB2b2lkIGluc2VydEZvckN1cnJlbnRBcHAoRW1vamlTdG9yZS5JdGVtIGl0ZW0pIHsKICAgIEVkaXRvckluZm8gaW5mbyA9IGdldEN1cnJlbnRJbnB1dEVkaXRvckluZm8oKTsKICAgIFN0cmluZyBwa2cgPSBpbmZvID09IG51bGwgfHwgaW5mby5wYWNrYWdlTmFtZSA9PSBudWxsID8gIiIgOiBpbmZvLnBhY2thZ2VOYW1lLnRvTG93ZXJDYXNlKGphdmEudXRpbC5Mb2NhbGUuUk9PVCk7CiAgICBib29sZWFuIGdpZkFjY2VwdGVkID0gZmFsc2U7CiAgICBpZiAoaW5mbyAhPSBudWxsICYmIGluZm8uY29udGVudE1pbWVUeXBlcyAhPSBudWxsKSB7CiAgICAgIGZvciAoU3RyaW5nIG1pbWUgOiBpbmZvLmNvbnRlbnRNaW1lVHlwZXMpIHsKICAgICAgICBpZiAoQ2xpcERlc2NyaXB0aW9uLmNvbXBhcmVNaW1lVHlwZXMoImltYWdlL2dpZiIsIG1pbWUpKSB7CiAgICAgICAgICBnaWZBY2NlcHRlZCA9IHRydWU7CiAgICAgICAgICBicmVhazsKICAgICAgICB9CiAgICAgIH0KICAgIH0KCiAgICBpZiAocGtnLmNvbnRhaW5zKCJ3aGF0c2FwcCIpKSB7CiAgICAgIGluc2VydChpdGVtKTsKICAgICAgcmV0dXJuOwogICAgfQoKICAgIGlmIChwa2cuY29udGFpbnMoImluc3RhZ3JhbSIpIHx8IGdpZkFjY2VwdGVkKSB7CiAgICAgIGluc2VydEluc3RhZ3JhbUdpZihpdGVtKTsKICAgICAgcmV0dXJuOwogICAgfQoKICAgIGluc2VydChpdGVtKTsKICB9CgogIHByaXZhdGUgdm9pZCBpbnNlcnRJbnN0YWdyYW1HaWYoRW1vamlTdG9yZS5JdGVtIGl0ZW0pIHsKICAgIGphdmEuaW8uRmlsZSBwbmdGaWxlID0gc3RvcmUuZmlsZShpdGVtLmlkKTsKICAgIGphdmEuaW8uRmlsZSBnaWZGaWxlID0gbmV3IGphdmEuaW8uRmlsZShwbmdGaWxlLmdldFBhcmVudEZpbGUoKSwgaXRlbS5pZCArICIuZ2lmIik7CiAgICBpZiAoZ2lmRmlsZS5leGlzdHMoKSAmJiBnaWZGaWxlLmxlbmd0aCgpID49IDYpIHsKICAgICAgY29tbWl0SW5zdGFncmFtR2lmKGl0ZW0sIGdpZkZpbGUpOwogICAgICByZXR1cm47CiAgICB9CgogICAgbmV3IFRocmVhZCgoKSAtPiB7CiAgICAgIGphdmEubmV0Lkh0dHBVUkxDb25uZWN0aW9uIGNvbm5lY3Rpb24gPSBudWxsOwogICAgICB0cnkgewogICAgICAgIFN0cmluZyBnaWZVcmwgPSAiaHR0cHM6Ly9haS1lbW9qaS1yZWxheS5vbnJlbmRlci5jb20vYXBpL2Vtb2ppL2xpYnJhcnkvZ2lmLyIgKyBpdGVtLmlkICsgIi5naWYiOwogICAgICAgIGNvbm5lY3Rpb24gPSAoamF2YS5uZXQuSHR0cFVSTENvbm5lY3Rpb24pIG5ldyBqYXZhLm5ldC5VUkwoZ2lmVXJsKS5vcGVuQ29ubmVjdGlvbigpOwogICAgICAgIGNvbm5lY3Rpb24uc2V0Q29ubmVjdFRpbWVvdXQoMTUwMDApOwogICAgICAgIGNvbm5lY3Rpb24uc2V0UmVhZFRpbWVvdXQoMzAwMDApOwogICAgICAgIGNvbm5lY3Rpb24uc2V0UmVxdWVzdFByb3BlcnR5KCJBY2NlcHQiLCAiaW1hZ2UvZ2lmIik7CiAgICAgICAgY29ubmVjdGlvbi5jb25uZWN0KCk7CiAgICAgICAgaWYgKGNvbm5lY3Rpb24uZ2V0UmVzcG9uc2VDb2RlKCkgIT0gMjAwKSB0aHJvdyBuZXcgamF2YS5pby5JT0V4Y2VwdGlvbigiR0lGIEhUVFAgIiArIGNvbm5lY3Rpb24uZ2V0UmVzcG9uc2VDb2RlKCkpOwogICAgICAgIFN0cmluZyB0eXBlID0gY29ubmVjdGlvbi5nZXRDb250ZW50VHlwZSgpOwogICAgICAgIGlmICh0eXBlID09IG51bGwgfHwgIXR5cGUudG9Mb3dlckNhc2UoamF2YS51dGlsLkxvY2FsZS5ST09UKS5zdGFydHNXaXRoKCJpbWFnZS9naWYiKSkgewogICAgICAgICAgdGhyb3cgbmV3IGphdmEuaW8uSU9FeGNlcHRpb24oIlNlcnZlciBkaWQgbm90IHJldHVybiBHSUYiKTsKICAgICAgICB9CiAgICAgICAgdHJ5IChqYXZhLmlvLklucHV0U3RyZWFtIGluID0gbmV3IGphdmEuaW8uQnVmZmVyZWRJbnB1dFN0cmVhbShjb25uZWN0aW9uLmdldElucHV0U3RyZWFtKCkpOwogICAgICAgICAgICAgamF2YS5pby5PdXRwdXRTdHJlYW0gb3V0ID0gbmV3IGphdmEuaW8uQnVmZmVyZWRPdXRwdXRTdHJlYW0obmV3IGphdmEuaW8uRmlsZU91dHB1dFN0cmVhbShnaWZGaWxlKSkpIHsKICAgICAgICAgIGJ5dGVbXSBidWZmZXIgPSBuZXcgYnl0ZVs4MTkyXTsKICAgICAgICAgIGludCBuOwogICAgICAgICAgd2hpbGUgKChuID0gaW4ucmVhZChidWZmZXIpKSAhPSAtMSkgb3V0LndyaXRlKGJ1ZmZlciwgMCwgbik7CiAgICAgICAgfQogICAgICAgIGlmIChnaWZGaWxlLmxlbmd0aCgpIDwgNikgdGhyb3cgbmV3IGphdmEuaW8uSU9FeGNlcHRpb24oIkVtcHR5IEdJRiIpOwogICAgICAgIG5ldyBhbmRyb2lkLm9zLkhhbmRsZXIoYW5kcm9pZC5vcy5Mb29wZXIuZ2V0TWFpbkxvb3BlcigpKS5wb3N0KCgpIC0+IGNvbW1pdEluc3RhZ3JhbUdpZihpdGVtLCBnaWZGaWxlKSk7CiAgICAgIH0gY2F0Y2ggKEV4Y2VwdGlvbiBlKSB7CiAgICAgICAgbmV3IGFuZHJvaWQub3MuSGFuZGxlcihhbmRyb2lkLm9zLkxvb3Blci5nZXRNYWluTG9vcGVyKCkpLnBvc3QoCiAgICAgICAgICAgICgpIC0+IFVpLnRvYXN0KHRoaXMsICJJbnN0YWdyYW0gR0lGIHNlbmQgZmFpbGVkIikpOwogICAgICB9IGZpbmFsbHkgewogICAgICAgIGlmIChjb25uZWN0aW9uICE9IG51bGwpIGNvbm5lY3Rpb24uZGlzY29ubmVjdCgpOwogICAgICB9CiAgICB9LCAiaW5zdGFncmFtLWdpZi1zZW5kIikuc3RhcnQoKTsKICB9CgogIHByaXZhdGUgdm9pZCBjb21taXRJbnN0YWdyYW1HaWYoRW1vamlTdG9yZS5JdGVtIGl0ZW0sIGphdmEuaW8uRmlsZSBnaWZGaWxlKSB7CiAgICBJbnB1dENvbm5lY3Rpb24gYyA9IGdldEN1cnJlbnRJbnB1dENvbm5lY3Rpb24oKTsKICAgIGlmIChjID09IG51bGwpIHsKICAgICAgVWkudG9hc3QodGhpcywgIkluc3RhZ3JhbSBpbnB1dCBjbG9zZWQiKTsKICAgICAgcmV0dXJuOwogICAgfQogICAgdHJ5IHsKICAgICAgYW5kcm9pZC5uZXQuVXJpIGdpZlVyaSA9IGFuZHJvaWQubmV0LlVyaS5wYXJzZSgKICAgICAgICAgICJjb250ZW50Oi8vIiArIEVtb2ppU3RvcmUuQVVUSE9SSVRZICsgIi8iICsgaXRlbS5pZCArICIuZ2lmIik7CiAgICAgIElucHV0Q29udGVudEluZm8gY29udGVudCA9IG5ldyBJbnB1dENvbnRlbnRJbmZvKAogICAgICAgICAgZ2lmVXJpLCBuZXcgQ2xpcERlc2NyaXB0aW9uKGl0ZW0ubGFiZWwsIG5ldyBTdHJpbmdbXSB7ImltYWdlL2dpZiJ9KSwgbnVsbCk7CiAgICAgIGJvb2xlYW4gYWNjZXB0ZWQgPSBjLmNvbW1pdENvbnRlbnQoCiAgICAgICAgICBjb250ZW50LCBJbnB1dENvbm5lY3Rpb24uSU5QVVRfQ09OVEVOVF9HUkFOVF9SRUFEX1VSSV9QRVJNSVNTSU9OLCBudWxsKTsKICAgICAgaWYgKCFhY2NlcHRlZCkgVWkudG9hc3QodGhpcywgIkluc3RhZ3JhbSByZWplY3RlZCBHSUYiKTsKICAgIH0gY2F0Y2ggKFJ1bnRpbWVFeGNlcHRpb24gZSkgewogICAgICBVaS50b2FzdCh0aGlzLCAiSW5zdGFncmFtIGJsb2NrZWQgR0lGIik7CiAgICB9CiAgfQo=
         run: |
           python3 - <<'PY'
-          import base64, os, re
           from pathlib import Path
+          import base64, os, re
+
           for gp in [Path('work/android-app/app/build.gradle'), Path('work/android-app/app/build.gradle.kts')]:
               if gp.exists():
                   text = gp.read_text()
-                  text = re.sub(r'versionCode\s*[= ]\s*\d+', 'versionCode = 1602' if gp.suffix == '.kts' else 'versionCode 1602', text)
-                  text = re.sub(r'versionName\s*[= ]\s*["\'][^"\']+["\']', 'versionName = "1.6.2"' if gp.suffix == '.kts' else 'versionName "1.6.2"', text)
+                  text = re.sub(r'versionCode\s*[= ]\s*\d+', 'versionCode = 1603' if gp.suffix == '.kts' else 'versionCode 1603', text)
+                  text = re.sub(r'versionName\s*[= ]\s*["\'][^"\']+["\']', 'versionName = "1.6.3"' if gp.suffix == '.kts' else 'versionName "1.6.3"', text)
                   gp.write_text(text)
+
           provider = Path('work/android-app/app/src/main/java/com/mehan/emojikeyboard/EmojiProvider.java')
           provider.write_bytes(base64.b64decode(os.environ['PROVIDER_B64']))
+
           service = Path('work/android-app/app/src/main/java/com/mehan/emojikeyboard/EmojiKeyboardService.java')
           s = service.read_text()
           old = '      b.setOnClickListener(v -> insert(item));\n      grid.addView(b, new android.view.ViewGroup.LayoutParams(width, Ui.dp(this, 72)));'
           new = '      b.setOnClickListener(v -> insertForCurrentApp(item));\n      grid.addView(b, new android.view.ViewGroup.LayoutParams(width, Ui.dp(this, 72)));'
-          if old not in s: raise SystemExit('Could not locate My Emojis click listener')
+          if old not in s:
+              raise SystemExit('Could not locate My Emojis click listener')
           s = s.replace(old, new, 1)
+
           marker = '\n  private void insert(EmojiStore.Item item) {'
-          if marker not in s: raise SystemExit('Could not locate insert method')
-          s = s.replace(marker, '\n' + base64.b64decode(os.environ['METHODS_B64']).decode() + marker, 1)
-          target = '    List<EmojiStore.Item> items = store.list("");'
-          if target not in s: raise SystemExit('Could not locate My Emojis list')
-          s = s.replace(target, base64.b64decode(os.environ['HINT_B64']).decode(), 1)
+          if marker not in s:
+              raise SystemExit('Could not locate insert method')
+          methods = base64.b64decode(os.environ['METHODS_B64']).decode()
+          s = s.replace(marker, '\n' + methods + marker, 1)
           service.write_text(s)
           PY
-      - name: Verify patch
+
+      - name: Verify GIF routing patch
         run: |
-          grep -n -E 'insertForCurrentApp|insertInstagramGif|image/gif|Instagram mode: GIF only' work/android-app/app/src/main/java/com/mehan/emojikeyboard/EmojiKeyboardService.java
+          grep -n -E 'insertForCurrentApp|insertInstagramGif|commitInstagramGif|image/gif|whatsapp|instagram' work/android-app/app/src/main/java/com/mehan/emojikeyboard/EmojiKeyboardService.java
           grep -n -E 'gif|png|openFile|getType' work/android-app/app/src/main/java/com/mehan/emojikeyboard/EmojiProvider.java
+
       - name: Build debug APK
         run: gradle -p work/android-app :app:assembleDebug --stacktrace
+
       - name: Sign with stable update key
         run: |
           base64 -d android-build/dev-update-key.jks.b64 > work/dev-update-key.jks
-          PASS=$(python3 -c "import re,pathlib; t=pathlib.Path('.github/workflows/android-keyboard.yml').read_text(); print(re.search(r'--ks-pass pass:([^\\\\\\s]+)', t).group(1))")
           APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
           "$APKSIGNER" sign \
             --ks work/dev-update-key.jks \
             --ks-key-alias emojiupdate \
-            --ks-pass "pass:$PASS" \
-            --key-pass "pass:$PASS" \
-            --out work/AI-Emoji-Keyboard-v1.6.2-instagram-gif-only.apk \
+            --ks-pass pass:emojiupdate2026 \
+            --key-pass pass:emojiupdate2026 \
+            --out work/AI-Emoji-Keyboard-v1.6.3-instagram-gif-direct.apk \
             work/android-app/app/build/outputs/apk/debug/app-debug.apk
-          "$APKSIGNER" verify --verbose --print-certs work/AI-Emoji-Keyboard-v1.6.2-instagram-gif-only.apk
+          "$APKSIGNER" verify --verbose --print-certs work/AI-Emoji-Keyboard-v1.6.3-instagram-gif-direct.apk
+
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: AI-Emoji-Keyboard-v1.6.2-instagram-gif-only
-          path: work/AI-Emoji-Keyboard-v1.6.2-instagram-gif-only.apk
+          name: AI-Emoji-Keyboard-v1.6.3-instagram-gif-direct
+          path: work/AI-Emoji-Keyboard-v1.6.3-instagram-gif-direct.apk
           if-no-files-found: error
