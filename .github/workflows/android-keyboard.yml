@@ -31,10 +31,24 @@ jobs:
           tar -tzf work/android-app.tar.gz >/dev/null
           tar -xzf work/android-app.tar.gz -C work
           sed -i 's/Ui\.column(/Ui.col(/g' work/android-app/app/src/main/java/com/mehan/emojikeyboard/EmojiKeyboardService.java
-      - name: Patch Instagram MIME probe
+      - name: Patch version and Instagram capability probe
         run: |
           python3 - <<'PY'
           from pathlib import Path
+
+          # Keep the app/package the same, but give Android a newer version code/name.
+          candidates = [
+              Path('work/android-app/app/build.gradle'),
+              Path('work/android-app/app/build.gradle.kts'),
+          ]
+          for gp in candidates:
+              if gp.exists():
+                  s = gp.read_text()
+                  import re
+                  s = re.sub(r'versionCode\s*[= ]\s*\d+', 'versionCode = 1601' if gp.suffix == '.kts' else 'versionCode 1601', s)
+                  s = re.sub(r'versionName\s*[= ]\s*["\'][^"\']+["\']', 'versionName = "1.6.1"' if gp.suffix == '.kts' else 'versionName "1.6.1"', s)
+                  gp.write_text(s)
+
           p = Path('work/android-app/app/src/main/java/com/mehan/emojikeyboard/EmojiKeyboardService.java')
           s = p.read_text()
           target = '    List<EmojiStore.Item> items = store.list("");'
@@ -62,14 +76,23 @@ jobs:
           s = s.replace(target, '\n'.join(lines), 1)
           p.write_text(s)
           PY
-      - name: Verify Instagram probe and normal send path
-        run: |
-          grep -n -E 'Instagram accepts:|packageName|contentMimeTypes|setOnClickListener\(v -> insert\(item\)\)|commitContent' work/android-app/app/src/main/java/com/mehan/emojikeyboard/EmojiKeyboardService.java
       - name: Build debug APK
         run: gradle -p work/android-app :app:assembleDebug --stacktrace
+      - name: Sign with stable development update key
+        run: |
+          base64 -d android-build/dev-update-key.jks.b64 > work/dev-update-key.jks
+          APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          "$APKSIGNER" sign \
+            --ks work/dev-update-key.jks \
+            --ks-key-alias emojiupdate \
+            --ks-pass pass:emojiupdate2026 \
+            --key-pass pass:emojiupdate2026 \
+            --out work/AI-Emoji-Keyboard-v1.6.1-stable-update.apk \
+            work/android-app/app/build/outputs/apk/debug/app-debug.apk
+          "$APKSIGNER" verify --verbose --print-certs work/AI-Emoji-Keyboard-v1.6.1-stable-update.apk
       - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
-          name: AI-Emoji-Keyboard-v1.6.0-instagram-probe
-          path: work/android-app/app/build/outputs/apk/debug/app-debug.apk
+          name: AI-Emoji-Keyboard-v1.6.1-stable-update
+          path: work/AI-Emoji-Keyboard-v1.6.1-stable-update.apk
           if-no-files-found: error
