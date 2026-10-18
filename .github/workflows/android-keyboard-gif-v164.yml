@@ -1,0 +1,95 @@
+name: Build Instagram GIF Provider Fix
+
+on:
+  push:
+    paths:
+      - '.github/workflows/android-keyboard-gif-v164.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+      - name: Install Android SDK packages
+        run: |
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+      - name: Restore Android source
+        run: |
+          mkdir -p work
+          cat android-build/chunks/chunk-* | base64 -d > work/android-app.tar.gz
+          tar -tzf work/android-app.tar.gz >/dev/null
+          tar -xzf work/android-app.tar.gz -C work
+          sed -i 's/Ui\.column(/Ui.col(/g' work/android-app/app/src/main/java/com/mehan/emojikeyboard/EmojiKeyboardService.java
+      - name: Patch Instagram GIF provider contract
+        env:
+          PROVIDER_B64: cGFja2FnZSBjb20ubWVoYW4uZW1vamlrZXlib2FyZDsKCmltcG9ydCBhbmRyb2lkLmNvbnRlbnQuQ29udGVudFByb3ZpZGVyOwppbXBvcnQgYW5kcm9pZC5jb250ZW50LkNvbnRlbnRWYWx1ZXM7CmltcG9ydCBhbmRyb2lkLmRhdGFiYXNlLkN1cnNvcjsKaW1wb3J0IGFuZHJvaWQuZGF0YWJhc2UuTWF0cml4Q3Vyc29yOwppbXBvcnQgYW5kcm9pZC5uZXQuVXJpOwppbXBvcnQgYW5kcm9pZC5vcy5QYXJjZWxGaWxlRGVzY3JpcHRvcjsKaW1wb3J0IGFuZHJvaWQucHJvdmlkZXIuT3BlbmFibGVDb2x1bW5zOwppbXBvcnQgamF2YS5pby5GaWxlOwppbXBvcnQgamF2YS5pby5GaWxlTm90Rm91bmRFeGNlcHRpb247CgpwdWJsaWMgZmluYWwgY2xhc3MgRW1vamlQcm92aWRlciBleHRlbmRzIENvbnRlbnRQcm92aWRlciB7CiAgQE92ZXJyaWRlIHB1YmxpYyBib29sZWFuIG9uQ3JlYXRlKCkgeyByZXR1cm4gdHJ1ZTsgfQoKICBwcml2YXRlIEZpbGUgcmVzb2x2ZShVcmkgdXJpKSB0aHJvd3MgRmlsZU5vdEZvdW5kRXhjZXB0aW9uIHsKICAgIFN0cmluZyBuYW1lID0gdXJpLmdldExhc3RQYXRoU2VnbWVudCgpOwogICAgaWYgKG5hbWUgPT0gbnVsbCB8fCAhbmFtZS5tYXRjaGVzKCIoPzpbQS1aYS16MC05Xy1dezMyfXxbYS1mMC05LV17MzZ9KVxcLig/OnBuZ3xnaWYpIikpIHsKICAgICAgdGhyb3cgbmV3IEZpbGVOb3RGb3VuZEV4Y2VwdGlvbigiSW52YWxpZCBlbW9qaSBwYXRoIik7CiAgICB9CiAgICBGaWxlIGZpbGUgPSBuZXcgRmlsZShFbW9qaVN0b3JlLmRpcmVjdG9yeShnZXRDb250ZXh0KCkpLCBuYW1lKTsKICAgIGlmICghZmlsZS5leGlzdHMoKSB8fCAhZmlsZS5pc0ZpbGUoKSkgdGhyb3cgbmV3IEZpbGVOb3RGb3VuZEV4Y2VwdGlvbigiRW1vamkgbm90IGZvdW5kIik7CiAgICByZXR1cm4gZmlsZTsKICB9CgogIEBPdmVycmlkZSBwdWJsaWMgU3RyaW5nIGdldFR5cGUoVXJpIHVyaSkgewogICAgU3RyaW5nIG5hbWUgPSB1cmkuZ2V0TGFzdFBhdGhTZWdtZW50KCk7CiAgICByZXR1cm4gbmFtZSAhPSBudWxsICYmIG5hbWUuZW5kc1dpdGgoIi5naWYiKSA/ICJpbWFnZS9naWYiIDogImltYWdlL3BuZyI7CiAgfQoKICBAT3ZlcnJpZGUgcHVibGljIFBhcmNlbEZpbGVEZXNjcmlwdG9yIG9wZW5GaWxlKFVyaSB1cmksIFN0cmluZyBtb2RlKSB0aHJvd3MgRmlsZU5vdEZvdW5kRXhjZXB0aW9uIHsKICAgIGlmICghInIiLmVxdWFscyhtb2RlKSkgdGhyb3cgbmV3IEZpbGVOb3RGb3VuZEV4Y2VwdGlvbigiUmVhZCBvbmx5Iik7CiAgICByZXR1cm4gUGFyY2VsRmlsZURlc2NyaXB0b3Iub3BlbihyZXNvbHZlKHVyaSksIFBhcmNlbEZpbGVEZXNjcmlwdG9yLk1PREVfUkVBRF9PTkxZKTsKICB9CgogIEBPdmVycmlkZSBwdWJsaWMgQ3Vyc29yIHF1ZXJ5KFVyaSB1cmksIFN0cmluZ1tdIHByb2plY3Rpb24sIFN0cmluZyBzZWxlY3Rpb24sIFN0cmluZ1tdIHNlbGVjdGlvbkFyZ3MsIFN0cmluZyBzb3J0T3JkZXIpIHsKICAgIFN0cmluZ1tdIGNvbHVtbnMgPSBwcm9qZWN0aW9uID09IG51bGwKICAgICAgICA/IG5ldyBTdHJpbmdbXSB7IE9wZW5hYmxlQ29sdW1ucy5ESVNQTEFZX05BTUUsIE9wZW5hYmxlQ29sdW1ucy5TSVpFIH0KICAgICAgICA6IHByb2plY3Rpb247CiAgICBNYXRyaXhDdXJzb3IgY3Vyc29yID0gbmV3IE1hdHJpeEN1cnNvcihjb2x1bW5zLCAxKTsKICAgIHRyeSB7CiAgICAgIEZpbGUgZmlsZSA9IHJlc29sdmUodXJpKTsKICAgICAgTWF0cml4Q3Vyc29yLlJvd0J1aWxkZXIgcm93ID0gY3Vyc29yLm5ld1JvdygpOwogICAgICBmb3IgKFN0cmluZyBjb2x1bW4gOiBjb2x1bW5zKSB7CiAgICAgICAgaWYgKE9wZW5hYmxlQ29sdW1ucy5ESVNQTEFZX05BTUUuZXF1YWxzKGNvbHVtbikpIHJvdy5hZGQoZmlsZS5nZXROYW1lKCkpOwogICAgICAgIGVsc2UgaWYgKE9wZW5hYmxlQ29sdW1ucy5TSVpFLmVxdWFscyhjb2x1bW4pKSByb3cuYWRkKGZpbGUubGVuZ3RoKCkpOwogICAgICAgIGVsc2Ugcm93LmFkZChudWxsKTsKICAgICAgfQogICAgfSBjYXRjaCAoRmlsZU5vdEZvdW5kRXhjZXB0aW9uIGlnbm9yZWQpIHt9CiAgICByZXR1cm4gY3Vyc29yOwogIH0KCiAgQE92ZXJyaWRlIHB1YmxpYyBVcmkgaW5zZXJ0KFVyaSB1cmksIENvbnRlbnRWYWx1ZXMgdmFsdWVzKSB7IHRocm93IG5ldyBVbnN1cHBvcnRlZE9wZXJhdGlvbkV4Y2VwdGlvbigpOyB9CiAgQE92ZXJyaWRlIHB1YmxpYyBpbnQgZGVsZXRlKFVyaSB1cmksIFN0cmluZyBzZWxlY3Rpb24sIFN0cmluZ1tdIHNlbGVjdGlvbkFyZ3MpIHsgdGhyb3cgbmV3IFVuc3VwcG9ydGVkT3BlcmF0aW9uRXhjZXB0aW9uKCk7IH0KICBAT3ZlcnJpZGUgcHVibGljIGludCB1cGRhdGUoVXJpIHVyaSwgQ29udGVudFZhbHVlcyB2YWx1ZXMsIFN0cmluZyBzZWxlY3Rpb24sIFN0cmluZ1tdIHNlbGVjdGlvbkFyZ3MpIHsgdGhyb3cgbmV3IFVuc3VwcG9ydGVkT3BlcmF0aW9uRXhjZXB0aW9uKCk7IH0KfQo=
+          METHODS_B64: ICBwcml2YXRlIHZvaWQgaW5zZXJ0Rm9yQ3VycmVudEFwcChFbW9qaVN0b3JlLkl0ZW0gaXRlbSkgewogICAgRWRpdG9ySW5mbyBpbmZvID0gZ2V0Q3VycmVudElucHV0RWRpdG9ySW5mbygpOwogICAgU3RyaW5nIHBrZyA9IGluZm8gPT0gbnVsbCB8fCBpbmZvLnBhY2thZ2VOYW1lID09IG51bGwKICAgICAgICA/ICIiCiAgICAgICAgOiBpbmZvLnBhY2thZ2VOYW1lLnRvTG93ZXJDYXNlKGphdmEudXRpbC5Mb2NhbGUuUk9PVCk7CgogICAgaWYgKHBrZy5jb250YWlucygid2hhdHNhcHAiKSkgewogICAgICBpbnNlcnQoaXRlbSk7CiAgICAgIHJldHVybjsKICAgIH0KICAgIGlmIChwa2cuY29udGFpbnMoImluc3RhZ3JhbSIpKSB7CiAgICAgIGluc2VydEluc3RhZ3JhbUdpZihpdGVtKTsKICAgICAgcmV0dXJuOwogICAgfQogICAgaW5zZXJ0KGl0ZW0pOwogIH0KCiAgcHJpdmF0ZSB2b2lkIGluc2VydEluc3RhZ3JhbUdpZihFbW9qaVN0b3JlLkl0ZW0gaXRlbSkgewogICAgamF2YS5pby5GaWxlIHBuZ0ZpbGUgPSBzdG9yZS5maWxlKGl0ZW0uaWQpOwogICAgamF2YS5pby5GaWxlIGdpZkZpbGUgPSBuZXcgamF2YS5pby5GaWxlKHBuZ0ZpbGUuZ2V0UGFyZW50RmlsZSgpLCBpdGVtLmlkICsgIi5naWYiKTsKCiAgICBpZiAoZ2lmRmlsZS5leGlzdHMoKSAmJiBnaWZGaWxlLmxlbmd0aCgpID49IDYpIHsKICAgICAgY29tbWl0SW5zdGFncmFtR2lmKGl0ZW0sIGdpZkZpbGUpOwogICAgICByZXR1cm47CiAgICB9CgogICAgbmV3IFRocmVhZCgoKSAtPiB7CiAgICAgIGphdmEubmV0Lkh0dHBVUkxDb25uZWN0aW9uIGNvbm5lY3Rpb24gPSBudWxsOwogICAgICB0cnkgewogICAgICAgIFN0cmluZyBnaWZVcmwgPSAiaHR0cHM6Ly9haS1lbW9qaS1yZWxheS5vbnJlbmRlci5jb20vYXBpL2Vtb2ppL2xpYnJhcnkvZ2lmLyIgKyBpdGVtLmlkICsgIi5naWYiOwogICAgICAgIGNvbm5lY3Rpb24gPSAoamF2YS5uZXQuSHR0cFVSTENvbm5lY3Rpb24pIG5ldyBqYXZhLm5ldC5VUkwoZ2lmVXJsKS5vcGVuQ29ubmVjdGlvbigpOwogICAgICAgIGNvbm5lY3Rpb24uc2V0Q29ubmVjdFRpbWVvdXQoMTUwMDApOwogICAgICAgIGNvbm5lY3Rpb24uc2V0UmVhZFRpbWVvdXQoMzAwMDApOwogICAgICAgIGNvbm5lY3Rpb24uc2V0UmVxdWVzdFByb3BlcnR5KCJBY2NlcHQiLCAiaW1hZ2UvZ2lmIik7CiAgICAgICAgY29ubmVjdGlvbi5jb25uZWN0KCk7CiAgICAgICAgaWYgKGNvbm5lY3Rpb24uZ2V0UmVzcG9uc2VDb2RlKCkgIT0gMjAwKSB7CiAgICAgICAgICB0aHJvdyBuZXcgamF2YS5pby5JT0V4Y2VwdGlvbigiR0lGIEhUVFAgIiArIGNvbm5lY3Rpb24uZ2V0UmVzcG9uc2VDb2RlKCkpOwogICAgICAgIH0KICAgICAgICBTdHJpbmcgdHlwZSA9IGNvbm5lY3Rpb24uZ2V0Q29udGVudFR5cGUoKTsKICAgICAgICBpZiAodHlwZSA9PSBudWxsIHx8ICF0eXBlLnRvTG93ZXJDYXNlKGphdmEudXRpbC5Mb2NhbGUuUk9PVCkuc3RhcnRzV2l0aCgiaW1hZ2UvZ2lmIikpIHsKICAgICAgICAgIHRocm93IG5ldyBqYXZhLmlvLklPRXhjZXB0aW9uKCJTZXJ2ZXIgZGlkIG5vdCByZXR1cm4gR0lGIik7CiAgICAgICAgfQoKICAgICAgICB0cnkgKGphdmEuaW8uSW5wdXRTdHJlYW0gaW4gPSBuZXcgamF2YS5pby5CdWZmZXJlZElucHV0U3RyZWFtKGNvbm5lY3Rpb24uZ2V0SW5wdXRTdHJlYW0oKSk7CiAgICAgICAgICAgICBqYXZhLmlvLk91dHB1dFN0cmVhbSBvdXQgPSBuZXcgamF2YS5pby5CdWZmZXJlZE91dHB1dFN0cmVhbShuZXcgamF2YS5pby5GaWxlT3V0cHV0U3RyZWFtKGdpZkZpbGUpKSkgewogICAgICAgICAgYnl0ZVtdIGJ1ZmZlciA9IG5ldyBieXRlWzgxOTJdOwogICAgICAgICAgaW50IG47CiAgICAgICAgICB3aGlsZSAoKG4gPSBpbi5yZWFkKGJ1ZmZlcikpICE9IC0xKSBvdXQud3JpdGUoYnVmZmVyLCAwLCBuKTsKICAgICAgICB9CgogICAgICAgIGlmIChnaWZGaWxlLmxlbmd0aCgpIDwgNikgdGhyb3cgbmV3IGphdmEuaW8uSU9FeGNlcHRpb24oIkVtcHR5IEdJRiIpOwogICAgICAgIG5ldyBhbmRyb2lkLm9zLkhhbmRsZXIoYW5kcm9pZC5vcy5Mb29wZXIuZ2V0TWFpbkxvb3BlcigpKS5wb3N0KAogICAgICAgICAgICAoKSAtPiBjb21taXRJbnN0YWdyYW1HaWYoaXRlbSwgZ2lmRmlsZSkpOwogICAgICB9IGNhdGNoIChFeGNlcHRpb24gZSkgewogICAgICAgIG5ldyBhbmRyb2lkLm9zLkhhbmRsZXIoYW5kcm9pZC5vcy5Mb29wZXIuZ2V0TWFpbkxvb3BlcigpKS5wb3N0KAogICAgICAgICAgICAoKSAtPiBVaS50b2FzdCh0aGlzLCAiSW5zdGFncmFtIEdJRiBjb3VsZCBub3QgYmUgc2VudCIpKTsKICAgICAgfSBmaW5hbGx5IHsKICAgICAgICBpZiAoY29ubmVjdGlvbiAhPSBudWxsKSBjb25uZWN0aW9uLmRpc2Nvbm5lY3QoKTsKICAgICAgfQogICAgfSwgImluc3RhZ3JhbS1naWYtc2VuZCIpLnN0YXJ0KCk7CiAgfQoKICBwcml2YXRlIHZvaWQgY29tbWl0SW5zdGFncmFtR2lmKEVtb2ppU3RvcmUuSXRlbSBpdGVtLCBqYXZhLmlvLkZpbGUgZ2lmRmlsZSkgewogICAgSW5wdXRDb25uZWN0aW9uIGMgPSBnZXRDdXJyZW50SW5wdXRDb25uZWN0aW9uKCk7CiAgICBFZGl0b3JJbmZvIGluZm8gPSBnZXRDdXJyZW50SW5wdXRFZGl0b3JJbmZvKCk7CiAgICBpZiAoYyA9PSBudWxsIHx8IGluZm8gPT0gbnVsbCkgewogICAgICBVaS50b2FzdCh0aGlzLCAiSW5zdGFncmFtIGlucHV0IGlzIG5vdCByZWFkeSIpOwogICAgICByZXR1cm47CiAgICB9CgogICAgdHJ5IHsKICAgICAgYW5kcm9pZC5uZXQuVXJpIGdpZlVyaSA9IGFuZHJvaWQubmV0LlVyaS5wYXJzZSgKICAgICAgICAgICJjb250ZW50Oi8vIiArIEVtb2ppU3RvcmUuQVVUSE9SSVRZICsgIi8iICsgaXRlbS5pZCArICIuZ2lmIik7CiAgICAgIFN0cmluZyB0YXJnZXRQYWNrYWdlID0gaW5mby5wYWNrYWdlTmFtZSA9PSBudWxsID8gIiIgOiBpbmZvLnBhY2thZ2VOYW1lOwoKICAgICAgaWYgKCF0YXJnZXRQYWNrYWdlLmlzRW1wdHkoKSkgewogICAgICAgIGdyYW50VXJpUGVybWlzc2lvbigKICAgICAgICAgICAgdGFyZ2V0UGFja2FnZSwKICAgICAgICAgICAgZ2lmVXJpLAogICAgICAgICAgICBhbmRyb2lkLmNvbnRlbnQuSW50ZW50LkZMQUdfR1JBTlRfUkVBRF9VUklfUEVSTUlTU0lPTik7CiAgICAgIH0KCiAgICAgIElucHV0Q29udGVudEluZm8gY29udGVudCA9IG5ldyBJbnB1dENvbnRlbnRJbmZvKAogICAgICAgICAgZ2lmVXJpLAogICAgICAgICAgbmV3IENsaXBEZXNjcmlwdGlvbihpdGVtLmxhYmVsLCBuZXcgU3RyaW5nW10geyJpbWFnZS9naWYifSksCiAgICAgICAgICBudWxsKTsKCiAgICAgIGJvb2xlYW4gYWNjZXB0ZWQgPSBjLmNvbW1pdENvbnRlbnQoCiAgICAgICAgICBjb250ZW50LAogICAgICAgICAgSW5wdXRDb25uZWN0aW9uLklOUFVUX0NPTlRFTlRfR1JBTlRfUkVBRF9VUklfUEVSTUlTU0lPTiwKICAgICAgICAgIG51bGwpOwoKICAgICAgaWYgKCFhY2NlcHRlZCkgVWkudG9hc3QodGhpcywgIkluc3RhZ3JhbSByZWplY3RlZCBHSUYgaW5wdXQiKTsKICAgIH0gY2F0Y2ggKFJ1bnRpbWVFeGNlcHRpb24gZSkgewogICAgICBVaS50b2FzdCh0aGlzLCAiSW5zdGFncmFtIGJsb2NrZWQgR0lGIGlucHV0Iik7CiAgICB9CiAgfQo=
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import base64, os, re
+
+          for gp in [Path('work/android-app/app/build.gradle'), Path('work/android-app/app/build.gradle.kts')]:
+              if gp.exists():
+                  text = gp.read_text()
+                  text = re.sub(r'versionCode\s*[= ]\s*\d+', 'versionCode = 1604' if gp.suffix == '.kts' else 'versionCode 1604', text)
+                  text = re.sub(r'versionName\s*[= ]\s*["\'][^"\']+["\']', 'versionName = "1.6.4"' if gp.suffix == '.kts' else 'versionName "1.6.4"', text)
+                  gp.write_text(text)
+
+          provider = Path('work/android-app/app/src/main/java/com/mehan/emojikeyboard/EmojiProvider.java')
+          provider.write_bytes(base64.b64decode(os.environ['PROVIDER_B64']))
+
+          manifest = Path('work/android-app/app/src/main/AndroidManifest.xml')
+          m = manifest.read_text()
+          if 'android:grantUriPermissions="true"' not in m:
+              raise SystemExit('EmojiProvider is not configured for URI grants')
+
+          service = Path('work/android-app/app/src/main/java/com/mehan/emojikeyboard/EmojiKeyboardService.java')
+          s = service.read_text()
+          old = '      b.setOnClickListener(v -> insert(item));\n      grid.addView(b, new android.view.ViewGroup.LayoutParams(width, Ui.dp(this, 72)));'
+          new = '      b.setOnClickListener(v -> insertForCurrentApp(item));\n      grid.addView(b, new android.view.ViewGroup.LayoutParams(width, Ui.dp(this, 72)));'
+          if old not in s:
+              raise SystemExit('Could not locate My Emojis click listener')
+          s = s.replace(old, new, 1)
+          marker = '\n  private void insert(EmojiStore.Item item) {'
+          if marker not in s:
+              raise SystemExit('Could not locate insert method')
+          methods = base64.b64decode(os.environ['METHODS_B64']).decode()
+          s = s.replace(marker, '\n' + methods + marker, 1)
+          service.write_text(s)
+          PY
+      - name: Verify provider and GIF path
+        run: |
+          grep -n -E 'MatrixCursor|OpenableColumns|openFile|image/gif' work/android-app/app/src/main/java/com/mehan/emojikeyboard/EmojiProvider.java
+          grep -n -E 'insertForCurrentApp|insertInstagramGif|commitInstagramGif|grantUriPermission|commitContent' work/android-app/app/src/main/java/com/mehan/emojikeyboard/EmojiKeyboardService.java
+          grep -n -E 'EmojiProvider|grantUriPermissions|authorities' work/android-app/app/src/main/AndroidManifest.xml
+      - name: Build debug APK
+        run: gradle -p work/android-app :app:assembleDebug --stacktrace
+      - name: Sign with stable update key
+        run: |
+          base64 -d android-build/dev-update-key.jks.b64 > work/dev-update-key.jks
+          APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          "$APKSIGNER" sign \
+            --ks work/dev-update-key.jks \
+            --ks-key-alias emojiupdate \
+            --ks-pass pass:emojiupdate2026 \
+            --key-pass pass:emojiupdate2026 \
+            --out work/AI-Emoji-Keyboard-v1.6.4-instagram-gif-provider-fix.apk \
+            work/android-app/app/build/outputs/apk/debug/app-debug.apk
+          "$APKSIGNER" verify --verbose --print-certs work/AI-Emoji-Keyboard-v1.6.4-instagram-gif-provider-fix.apk
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: AI-Emoji-Keyboard-v1.6.4-instagram-gif-provider-fix
+          path: work/AI-Emoji-Keyboard-v1.6.4-instagram-gif-provider-fix.apk
+          if-no-files-found: error
