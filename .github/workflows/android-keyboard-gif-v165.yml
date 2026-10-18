@@ -1,0 +1,230 @@
+name: Build Instagram GIF Clipboard Transport
+
+on:
+  push:
+    paths:
+      - '.github/workflows/android-keyboard-gif-v165.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.13'
+
+      - name: Install Android SDK packages
+        run: |
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "platform-tools" "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Restore Android source
+        run: |
+          mkdir -p work
+          cat android-build/chunks/chunk-* | base64 -d > work/android-app.tar.gz
+          tar -tzf work/android-app.tar.gz >/dev/null
+          tar -xzf work/android-app.tar.gz -C work
+          sed -i 's/Ui\.column(/Ui.col(/g' work/android-app/app/src/main/java/com/mehan/emojikeyboard/EmojiKeyboardService.java
+
+      - name: Patch Instagram clipboard GIF transport
+        run: |
+          cat > work/android-app/app/src/main/java/com/mehan/emojikeyboard/EmojiProvider.java <<'JAVA'
+          package com.mehan.emojikeyboard;
+
+          import android.content.ContentProvider;
+          import android.content.ContentValues;
+          import android.database.Cursor;
+          import android.database.MatrixCursor;
+          import android.net.Uri;
+          import android.os.ParcelFileDescriptor;
+          import android.provider.OpenableColumns;
+          import java.io.File;
+          import java.io.FileNotFoundException;
+
+          public final class EmojiProvider extends ContentProvider {
+            @Override public boolean onCreate() { return true; }
+
+            private File resolve(Uri uri) throws FileNotFoundException {
+              String name = uri.getLastPathSegment();
+              if (name == null || !name.matches("(?:[A-Za-z0-9_-]{32}|[a-f0-9-]{36})\\.(?:png|gif)")) {
+                throw new FileNotFoundException("Invalid emoji path");
+              }
+              File file = new File(EmojiStore.directory(getContext()), name);
+              if (!file.exists() || !file.isFile()) throw new FileNotFoundException("Emoji not found");
+              return file;
+            }
+
+            @Override public String getType(Uri uri) {
+              String name = uri.getLastPathSegment();
+              return name != null && name.endsWith(".gif") ? "image/gif" : "image/png";
+            }
+
+            @Override public ParcelFileDescriptor openFile(Uri uri, String mode) throws FileNotFoundException {
+              if (!"r".equals(mode)) throw new FileNotFoundException("Read only");
+              return ParcelFileDescriptor.open(resolve(uri), ParcelFileDescriptor.MODE_READ_ONLY);
+            }
+
+            @Override public Cursor query(Uri uri, String[] projection, String selection, String[] selectionArgs, String sortOrder) {
+              String[] columns = projection == null
+                  ? new String[] { OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE }
+                  : projection;
+              MatrixCursor cursor = new MatrixCursor(columns, 1);
+              try {
+                File file = resolve(uri);
+                MatrixCursor.RowBuilder row = cursor.newRow();
+                for (String column : columns) {
+                  if (OpenableColumns.DISPLAY_NAME.equals(column)) row.add(file.getName());
+                  else if (OpenableColumns.SIZE.equals(column)) row.add(file.length());
+                  else row.add(null);
+                }
+              } catch (FileNotFoundException ignored) {}
+              return cursor;
+            }
+
+            @Override public Uri insert(Uri uri, ContentValues values) { throw new UnsupportedOperationException(); }
+            @Override public int delete(Uri uri, String selection, String[] selectionArgs) { throw new UnsupportedOperationException(); }
+            @Override public int update(Uri uri, ContentValues values, String selection, String[] selectionArgs) { throw new UnsupportedOperationException(); }
+          }
+          JAVA
+
+          python3 - <<'PY'
+          from pathlib import Path
+          import re
+
+          for gp in [Path('work/android-app/app/build.gradle'), Path('work/android-app/app/build.gradle.kts')]:
+              if gp.exists():
+                  s = gp.read_text()
+                  s = re.sub(r'versionCode\s*[= ]\s*\d+', 'versionCode = 1605' if gp.suffix == '.kts' else 'versionCode 1605', s)
+                  s = re.sub(r'versionName\s*[= ]\s*["\'][^"\']+["\']', 'versionName = "1.6.5"' if gp.suffix == '.kts' else 'versionName "1.6.5"', s)
+                  gp.write_text(s)
+
+          p = Path('work/android-app/app/src/main/java/com/mehan/emojikeyboard/EmojiKeyboardService.java')
+          s = p.read_text()
+          old = '      b.setOnClickListener(v -> insert(item));\n      grid.addView(b, new android.view.ViewGroup.LayoutParams(width, Ui.dp(this, 72)));'
+          new = '      b.setOnClickListener(v -> insertForCurrentApp(item));\n      grid.addView(b, new android.view.ViewGroup.LayoutParams(width, Ui.dp(this, 72)));'
+          if old not in s:
+              raise SystemExit('Could not locate My Emojis click listener')
+          s = s.replace(old, new, 1)
+
+          marker = '\n  private void insert(EmojiStore.Item item) {'
+          if marker not in s:
+              raise SystemExit('Could not locate insert method')
+
+          methods = r'''
+          private void insertForCurrentApp(EmojiStore.Item item) {
+            EditorInfo info = getCurrentInputEditorInfo();
+            String pkg = info == null || info.packageName == null
+                ? ""
+                : info.packageName.toLowerCase(java.util.Locale.ROOT);
+            if (pkg.contains("whatsapp")) {
+              insert(item);
+              return;
+            }
+            if (pkg.contains("instagram")) {
+              insertInstagramGifViaClipboard(item, pkg);
+              return;
+            }
+            insert(item);
+          }
+
+          private void insertInstagramGifViaClipboard(EmojiStore.Item item, String targetPackage) {
+            java.io.File pngFile = store.file(item.id);
+            java.io.File gifFile = new java.io.File(pngFile.getParentFile(), item.id + ".gif");
+            if (gifFile.exists() && gifFile.length() >= 6) {
+              pasteInstagramGif(item, gifFile, targetPackage);
+              return;
+            }
+            new Thread(() -> {
+              java.net.HttpURLConnection connection = null;
+              try {
+                String gifUrl = "https://ai-emoji-relay.onrender.com/api/emoji/library/gif/" + item.id + ".gif";
+                connection = (java.net.HttpURLConnection) new java.net.URL(gifUrl).openConnection();
+                connection.setConnectTimeout(15000);
+                connection.setReadTimeout(30000);
+                connection.setRequestProperty("Accept", "image/gif");
+                connection.connect();
+                if (connection.getResponseCode() != 200) throw new java.io.IOException("GIF HTTP " + connection.getResponseCode());
+                String type = connection.getContentType();
+                if (type == null || !type.toLowerCase(java.util.Locale.ROOT).startsWith("image/gif")) {
+                  throw new java.io.IOException("Server did not return GIF");
+                }
+                try (java.io.InputStream in = new java.io.BufferedInputStream(connection.getInputStream());
+                     java.io.OutputStream out = new java.io.BufferedOutputStream(new java.io.FileOutputStream(gifFile))) {
+                  byte[] buffer = new byte[8192];
+                  int n;
+                  while ((n = in.read(buffer)) != -1) out.write(buffer, 0, n);
+                }
+                if (gifFile.length() < 6) throw new java.io.IOException("Empty GIF");
+                new android.os.Handler(android.os.Looper.getMainLooper()).post(
+                    () -> pasteInstagramGif(item, gifFile, targetPackage));
+              } catch (Exception e) {
+                new android.os.Handler(android.os.Looper.getMainLooper()).post(
+                    () -> Ui.toast(this, "Instagram GIF could not be loaded"));
+              } finally {
+                if (connection != null) connection.disconnect();
+              }
+            }, "instagram-gif-clipboard").start();
+          }
+
+          private void pasteInstagramGif(EmojiStore.Item item, java.io.File gifFile, String targetPackage) {
+            InputConnection c = getCurrentInputConnection();
+            if (c == null) {
+              Ui.toast(this, "Instagram input closed");
+              return;
+            }
+            try {
+              android.net.Uri gifUri = android.net.Uri.parse(
+                  "content://" + EmojiStore.AUTHORITY + "/" + item.id + ".gif");
+              try {
+                grantUriPermission(targetPackage, gifUri, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION);
+              } catch (RuntimeException ignored) {}
+              android.content.ClipboardManager clipboard =
+                  (android.content.ClipboardManager) getSystemService(CLIPBOARD_SERVICE);
+              android.content.ClipData clip = android.content.ClipData.newUri(
+                  getContentResolver(), item.label, gifUri);
+              clipboard.setPrimaryClip(clip);
+              boolean pasted = c.performContextMenuAction(android.R.id.paste);
+              if (!pasted) Ui.toast(this, "Instagram rejected GIF paste");
+            } catch (RuntimeException e) {
+              Ui.toast(this, "Instagram blocked GIF paste");
+            }
+          }
+          '''
+          s = s.replace(marker, '\n' + methods + marker, 1)
+          p.write_text(s)
+          PY
+
+      - name: Verify clipboard route
+        run: |
+          grep -n -E 'insertForCurrentApp|insertInstagramGifViaClipboard|pasteInstagramGif|ClipboardManager|performContextMenuAction|image/gif' work/android-app/app/src/main/java/com/mehan/emojikeyboard/EmojiKeyboardService.java
+          grep -n -E 'gif|DISPLAY_NAME|SIZE|openFile|getType' work/android-app/app/src/main/java/com/mehan/emojikeyboard/EmojiProvider.java
+
+      - name: Build debug APK
+        run: gradle -p work/android-app :app:assembleDebug --stacktrace
+
+      - name: Sign with stable update key
+        run: |
+          base64 -d android-build/dev-update-key.jks.b64 > work/dev-update-key.jks
+          APKSIGNER="$ANDROID_HOME/build-tools/35.0.0/apksigner"
+          "$APKSIGNER" sign \
+            --ks work/dev-update-key.jks \
+            --ks-key-alias emojiupdate \
+            --ks-pass pass:emojiupdate2026 \
+            --key-pass pass:emojiupdate2026 \
+            --out work/AI-Emoji-Keyboard-v1.6.5-instagram-gif-clipboard.apk \
+            work/android-app/app/build/outputs/apk/debug/app-debug.apk
+          "$APKSIGNER" verify --verbose --print-certs work/AI-Emoji-Keyboard-v1.6.5-instagram-gif-clipboard.apk
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: AI-Emoji-Keyboard-v1.6.5-instagram-gif-clipboard
+          path: work/AI-Emoji-Keyboard-v1.6.5-instagram-gif-clipboard.apk
+          if-no-files-found: error
